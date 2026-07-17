@@ -4,6 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SplashScreen from './Source/Screens/SplashScreen/SplashScreen';
 import Stacks from './Source/Navigation/Stacks';
 import { NavigationContainer } from '@react-navigation/native';
+import { Provider } from 'react-redux';
+import store from './Source/Redux/Store';
 
 function App() {
   const [counter, setCounter] = useState(3);
@@ -19,15 +21,17 @@ function App() {
   }, [counter]);
 
   return (
-    <View style={{ flex: 1 }}>
-      {counter > 0 ? (
-        <SplashScreen />
-      ) : (
-        <NavigationContainer>
-          <Stacks />
-        </NavigationContainer>
-      )}
-    </View>
+    <Provider store={store}>
+      <View style={{ flex: 1 }}>
+        {counter > 0 ? (
+          <SplashScreen />
+        ) : (
+          <NavigationContainer>
+            <Stacks />
+          </NavigationContainer>
+        )}
+      </View>
+    </Provider>
   );
 }
 

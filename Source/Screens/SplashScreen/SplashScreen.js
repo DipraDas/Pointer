@@ -43,7 +43,7 @@ const SplashScreen = () => {
 
   const backgroundColor = backgroundAnimation.interpolate({
     inputRange: [0, 0.25, 0.5, 0.75, 1],
-    outputRange: ['#000', '#000', '#04001c', '#000', '#000'],
+    outputRange: ['#000', '#000', '#000', '#000', '#000'],
   });
 
   return (

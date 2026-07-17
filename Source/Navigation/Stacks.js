@@ -6,6 +6,7 @@ import ProfileScreen from '../Screens/ProfileScreen/ProfileScreen';
 import MapScreen from '../Screens/MapScreen/MapScreen';
 import Root from './Root';
 import Login from '../Screens/Authentication/Login';
+import SignUp from '../Screens/Authentication/SignUp';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -29,6 +30,7 @@ const Stacks = () => {
         <Stack.Navigator screenOptions={{ headerShown: false, animationEnabled: false }}>
             <Stack.Screen name="Main" component={MainTab} />
             <Stack.Screen name="Login" component={Login} />
+            <Stack.Screen name="Signup" component={SignUp} />
         </Stack.Navigator>
     )
 }
