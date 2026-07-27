@@ -20,6 +20,7 @@ import {
   setUser,
   clearSignUpForm,
 } from '../../Redux/Features/Authentication/AuthSlice';
+import { useSignupMutation } from '../../Redux/Features/Authentication/AuthApi';
 
 const SignUp = ({ navigation }) => {
   useEffect(() => {
@@ -27,9 +28,48 @@ const SignUp = ({ navigation }) => {
   }, []);
 
   const dispatch = useDispatch();
+  const [signup, { isLoading }] = useSignupMutation();
+  const { name, email, password, confirmPassword } =
+    useSelector(state => state.auth);
 
-  const { name, email, password, confirmPassword, } = useSelector(state => state.authentication);
+  const handleSignup = async () => {
+    const isValid = SIGN_UP.HANDLE_SIGNUP({
+      name,
+      email,
+      password,
+      confirmPassword,
+    });
 
+    if (!isValid) {
+      return;
+    }
+
+    try {
+      const response = await signup({
+        name,
+        email,
+        password,
+      }).unwrap();
+
+      console.log(" Signup response: ");
+      console.log(response);
+
+      dispatch(setUser({ name, email }));
+
+      dispatch(clearSignUpForm());
+
+      navigation.navigate("VerifySignupOtp", {
+        email,
+      });
+
+    } catch (error) {
+
+      console.log(error);
+
+      alert(error?.data?.message || "Signup failed");
+
+    }
+  };
   return (
     <>
       <StatusBar
@@ -119,22 +159,7 @@ const SignUp = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => {
-            const isValid = SIGN_UP.HANDLE_SIGNUP({
-              name,
-              email,
-              password,
-              confirmPassword,
-            });
-
-            if (!isValid) {
-              return;
-            }
-
-            dispatch(setUser({ name, email }));
-            dispatch(clearSignUpForm());
-
-          }}
+          onPress={handleSignup}
         >
           <Text style={styles.buttonText}>Create Account</Text>
         </TouchableOpacity>

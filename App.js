@@ -5,7 +5,7 @@ import SplashScreen from './Source/Screens/SplashScreen/SplashScreen';
 import Stacks from './Source/Navigation/Stacks';
 import { NavigationContainer } from '@react-navigation/native';
 import { Provider } from 'react-redux';
-import store from './Source/Redux/Store';
+import { store } from './Source/Redux/Store';
 
 function App() {
   const [counter, setCounter] = useState(3);

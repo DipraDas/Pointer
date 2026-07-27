@@ -4,11 +4,67 @@ import SystemNavigationBar from 'react-native-system-navigation-bar';
 import COLOR from '../../Utilities/Color';
 import LinearGradient from 'react-native-linear-gradient';
 
-const Login = ({navigation}) => {
+import { useDispatch, useSelector } from 'react-redux';
+
+import {
+  setEmail,
+  setPassword,
+} from '../../Redux/Features/Authentication/AuthSlice';
+
+import { useLoginMutation } from '../../Redux/Features/Authentication/AuthApi';
+
+const Login = ({ navigation }) => {
 
   useEffect(() => {
     SystemNavigationBar.setNavigationColor('black', 'light');
   }, []);
+  const dispatch = useDispatch();
+
+  const { email, password } = useSelector(
+    state => state.auth
+  );
+
+  const [login, { isLoading }] = useLoginMutation();
+  const handleLogin = async () => {
+
+    if (!email.trim()) {
+      Alert.alert("Validation", "Email is required");
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert("Validation", "Password is required");
+      return;
+    }
+
+    try {
+
+      const response = await login({
+        email,
+        password,
+
+      }).unwrap();
+
+      console.log("Login Response");
+      console.log(response);
+console.log(navigation.getState());
+
+      navigation.navigate("VerifyLoginOtp", {
+        email,
+      });
+
+    } catch (error) {
+
+      console.log(error);
+
+      Alert.alert(
+        "Error",
+        error?.data?.message || "Login failed"
+      );
+
+    }
+
+  };
 
   return (
     <>
@@ -29,8 +85,12 @@ const Login = ({navigation}) => {
           style={styles.containerBox}
         >
           <TextInput
+            value={email}
+            onChangeText={text => dispatch(setEmail(text))}
             placeholder="Enter your email"
             placeholderTextColor="#777"
+            keyboardType="email-address"
+            autoCapitalize="none"
             style={styles.input}
           />
         </LinearGradient>
@@ -43,24 +103,28 @@ const Login = ({navigation}) => {
           style={styles.containerBox}
         >
           <TextInput
+            value={password}
+            onChangeText={text => dispatch(setPassword(text))}
             placeholder="Enter your password"
             placeholderTextColor="#777"
             secureTextEntry
             style={styles.input}
           />
         </LinearGradient>
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Sign In</Text>
+        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading}>
+          <Text style={styles.buttonText}>
+            {isLoading ? "Signing In..." : "Sign In"}
+          </Text>
         </TouchableOpacity>
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>
-            New here? 
+            New here?
           </Text>
 
           <TouchableOpacity
             onPress={() => navigation?.navigate('Signup')}
           >
-            <Text style={[styles.loginButtonText, {marginLeft: 5}]}> Sign up</Text>
+            <Text style={[styles.loginButtonText, { marginLeft: 5 }]}> Sign up</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.bottomContainer}>

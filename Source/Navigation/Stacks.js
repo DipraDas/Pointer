@@ -7,6 +7,8 @@ import MapScreen from '../Screens/MapScreen/MapScreen';
 import Root from './Root';
 import Login from '../Screens/Authentication/Login';
 import SignUp from '../Screens/Authentication/SignUp';
+import VerifySignupOtp from '../Screens/Authentication/VerifySignupOtp';
+import VerifyLoginOtp from '../Screens/Authentication/VerifyLoginOtp';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -31,6 +33,8 @@ const Stacks = () => {
             <Stack.Screen name="Main" component={MainTab} />
             <Stack.Screen name="Login" component={Login} />
             <Stack.Screen name="Signup" component={SignUp} />
+            <Stack.Screen name="VerifyLoginOtp" component={VerifyLoginOtp} />
+            <Stack.Screen name="VerifySignupOtp" component={VerifySignupOtp} />
         </Stack.Navigator>
     )
 }
