@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
+  Keyboard,
   StyleSheet,
   Text,
   View,
   StatusBar,
   TextInput,
-  TouchableOpacity
+  TouchableOpacity,
 } from 'react-native';
+
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import LinearGradient from 'react-native-linear-gradient';
+import { useDispatch, useSelector } from 'react-redux';
+
 import COLOR from '../../Utilities/Color';
 import SIGN_UP from '../../Functions/Authentication/SignUp';
-import { useDispatch, useSelector } from 'react-redux';
+
 import {
   setName,
   setEmail,
@@ -20,22 +25,55 @@ import {
   setUser,
   clearSignUpForm,
 } from '../../Redux/Features/Authentication/AuthSlice';
-import { useSignupMutation } from '../../Redux/Features/Authentication/AuthApi';
+
+import {
+  useSignupMutation,
+} from '../../Redux/Features/Authentication/AuthApi';
 
 const SignUp = ({ navigation }) => {
-  useEffect(() => {
-    SystemNavigationBar.setNavigationColor('black', 'light');
-  }, []);
-
   const dispatch = useDispatch();
-  const [signup, { isLoading }] = useSignupMutation();
+
   const { name, email, password, confirmPassword } =
     useSelector(state => state.auth);
 
+  const [isKeyboardVisible, setIsKeyboardVisible] =
+    useState(false);
+
+  const [signup, { isLoading }] = useSignupMutation();
+
+  useEffect(() => {
+    SystemNavigationBar.setNavigationColor(
+      'black',
+      'light',
+    );
+
+    const keyboardShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      () => {
+        setIsKeyboardVisible(true);
+      },
+    );
+
+    const keyboardHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setIsKeyboardVisible(false);
+      },
+    );
+
+    return () => {
+      keyboardShowListener.remove();
+      keyboardHideListener.remove();
+    };
+  }, []);
+
   const handleSignup = async () => {
+    const formattedName = name.trim();
+    const formattedEmail = email.trim().toLowerCase();
+
     const isValid = SIGN_UP.HANDLE_SIGNUP({
-      name,
-      email,
+      name: formattedName,
+      email: formattedEmail,
       password,
       confirmPassword,
     });
@@ -46,34 +84,42 @@ const SignUp = ({ navigation }) => {
 
     try {
       const response = await signup({
-        name,
-        email,
+        name: formattedName,
+        email: formattedEmail,
         password,
       }).unwrap();
 
-      console.log(" Signup response: ");
-      console.log(response);
+      console.log('Signup response:', response);
 
-      dispatch(setUser({ name, email }));
+      dispatch(
+        setUser({
+          name: formattedName,
+          email: formattedEmail,
+        }),
+      );
 
-      dispatch(clearSignUpForm());
+      Keyboard.dismiss();
 
-      navigation.navigate("VerifySignupOtp", {
-        email,
+      navigation.navigate('VerifySignupOtp', {
+        name: formattedName,
+        email: formattedEmail,
       });
 
+      dispatch(clearSignUpForm());
     } catch (error) {
+      console.log('Signup error:', error);
 
-      console.log(error);
-
-      alert(error?.data?.message || "Signup failed");
-
+      Alert.alert(
+        'Error',
+        error?.data?.message || 'Signup failed',
+      );
     }
   };
+
   return (
     <>
       <StatusBar
-        backgroundColor="#000"
+        backgroundColor="#000000"
         barStyle="light-content"
       />
 
@@ -94,15 +140,22 @@ const SignUp = ({ navigation }) => {
         >
           <TextInput
             value={name}
-            onChangeText={value => dispatch(setName(value))}
+            onChangeText={value =>
+              dispatch(setName(value))
+            }
             placeholder="Enter your full name"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor="#777777"
             autoCapitalize="words"
+            autoCorrect={false}
+            selectionColor="#FFFFFF"
+            cursorColor="#FFFFFF"
+            style={styles.input}
           />
         </LinearGradient>
 
-        <Text style={styles.label}>Email Address</Text>
+        <Text style={styles.label}>
+          Email Address
+        </Text>
 
         <LinearGradient
           colors={['#212121', 'transparent']}
@@ -112,12 +165,17 @@ const SignUp = ({ navigation }) => {
         >
           <TextInput
             value={email}
-            onChangeText={value => dispatch(setEmail(value))}
+            onChangeText={value =>
+              dispatch(setEmail(value))
+            }
             placeholder="Enter your email"
-            placeholderTextColor="#777"
-            style={styles.input}
+            placeholderTextColor="#777777"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
+            selectionColor="#FFFFFF"
+            cursorColor="#FFFFFF"
+            style={styles.input}
           />
         </LinearGradient>
 
@@ -131,15 +189,23 @@ const SignUp = ({ navigation }) => {
         >
           <TextInput
             value={password}
-            onChangeText={value => dispatch(setPassword(value))}
+            onChangeText={value =>
+              dispatch(setPassword(value))
+            }
             placeholder="Enter your password"
-            placeholderTextColor="#777"
+            placeholderTextColor="#777777"
             secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            selectionColor="#FFFFFF"
+            cursorColor="#FFFFFF"
             style={styles.input}
           />
         </LinearGradient>
 
-        <Text style={styles.label}>Confirm Password</Text>
+        <Text style={styles.label}>
+          Confirm Password
+        </Text>
 
         <LinearGradient
           colors={['#212121', 'transparent']}
@@ -149,19 +215,34 @@ const SignUp = ({ navigation }) => {
         >
           <TextInput
             value={confirmPassword}
-            onChangeText={value => dispatch(setConfirmPassword(value))}
+            onChangeText={value =>
+              dispatch(setConfirmPassword(value))
+            }
             placeholder="Confirm your password"
-            placeholderTextColor="#777"
+            placeholderTextColor="#777777"
             secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            selectionColor="#FFFFFF"
+            cursorColor="#FFFFFF"
             style={styles.input}
           />
         </LinearGradient>
 
         <TouchableOpacity
-          style={styles.button}
+          style={[
+            styles.button,
+            isLoading && styles.disabledButton,
+          ]}
           onPress={handleSignup}
+          disabled={isLoading}
+          activeOpacity={0.7}
         >
-          <Text style={styles.buttonText}>Create Account</Text>
+          <Text style={styles.buttonText}>
+            {isLoading
+              ? 'CREATING ACCOUNT...'
+              : 'CREATE ACCOUNT'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.loginContainer}>
@@ -170,21 +251,29 @@ const SignUp = ({ navigation }) => {
           </Text>
 
           <TouchableOpacity
-            onPress={() => navigation?.navigate('Login')}
+            onPress={() =>
+              navigation.navigate('Login')
+            }
+            disabled={isLoading}
           >
-            <Text style={styles.loginButtonText}> Sign In</Text>
+            <Text style={styles.loginButtonText}>
+              {' '}
+              Sign In
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.bottomContainer}>
-          <Text style={styles.bottomContainerText}>
-            Developed by
-          </Text>
+        {!isKeyboardVisible && (
+          <View style={styles.bottomContainer}>
+            <Text style={styles.bottomContainerText}>
+              Developed by
+            </Text>
 
-          <Text style={styles.instituteText}>
-            Melbourne Institute of Technology
-          </Text>
-        </View>
+            <Text style={styles.instituteText}>
+              Melbourne Institute of Technology
+            </Text>
+          </View>
+        )}
       </View>
     </>
   );
@@ -235,7 +324,8 @@ const styles = StyleSheet.create({
   },
 
   input: {
-    color: COLOR.WHITE,
+    width: '100%',
+    color: '#FFFFFF',
     fontSize: 15,
     letterSpacing: 0.5,
     paddingVertical: 8,
@@ -248,6 +338,10 @@ const styles = StyleSheet.create({
     marginTop: 22,
     borderRadius: 10,
     paddingVertical: 15,
+  },
+
+  disabledButton: {
+    opacity: 0.5,
   },
 
   buttonText: {
