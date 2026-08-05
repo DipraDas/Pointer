@@ -23,6 +23,8 @@ export const baseApi = createApi({
   baseQuery: fetchBaseQuery({
     // baseUrl: 'http://192.168.20.21:5001/api/',
     // ipconfig getifaddr en0
+    // Emulator: 10.0.2.2
+    // Real Samsung A51: USB + adb reverse
     baseUrl: 'http://10.0.2.2:5001/api/',
   }),
 
