@@ -21,7 +21,9 @@ export const baseApi = createApi({
   reducerPath: 'baseApi',
 
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://192.168.20.21:5001/api/',
+    // baseUrl: 'http://192.168.20.21:5001/api/',
+    // ipconfig getifaddr en0
+    baseUrl: 'http://10.0.2.2:5001/api/',
   }),
 
   tagTypes: ['User'],
