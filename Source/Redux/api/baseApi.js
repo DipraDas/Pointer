@@ -25,7 +25,7 @@ export const baseApi = createApi({
     // ipconfig getifaddr en0
     // Emulator: 10.0.2.2
     // Real Samsung A51: USB + adb reverse
-    baseUrl: 'http://10.0.2.2:5001/api/',
+    baseUrl: 'http://192.168.0.102:5000/api',
   }),
 
   tagTypes: ['User'],

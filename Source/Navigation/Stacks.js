@@ -18,6 +18,7 @@ import {
 import HomeScreen from '../Screens/HomeScreen/HomeScreen';
 import ProfileScreen from '../Screens/ProfileScreen/ProfileScreen';
 import MapScreen from '../Screens/MapScreen/MapScreen';
+import ChangePasswordScreen from '../Screens/Authentication/ChangePasswordScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -138,6 +139,11 @@ const Stacks = () => {
             <Stack.Screen
                 name="MainTab"
                 component={MainTab}
+            />
+
+            <Stack.Screen
+                name="ChangePassword"
+                component={ChangePasswordScreen}
             />
         </Stack.Navigator>
     );

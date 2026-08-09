@@ -144,6 +144,16 @@ const ProfileScreen = () => {
                         </View>
 
                         <TouchableOpacity
+                            style={styles.changePasswordButton
+                            }
+                            onPress={() => navigation.navigate("ChangePassword")}
+                        >
+                            <Text style={styles.changePasswordButtonText}>
+                                Change Password
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                             style={styles.logoutButton}
                             onPress={handleLogout}
                             activeOpacity={0.7}
@@ -261,6 +271,23 @@ const styles = StyleSheet.create({
         height: 1,
         backgroundColor: '#DDDDDD',
     },
+    changePasswordButton: {
+        width: '90%',
+        borderWidth: 1,
+        borderColor: '#000000',
+        backgroundColor: '#111111',
+        borderRadius: 10,
+        marginTop: 30,
+        paddingVertical: 15,
+    },
+
+    changePasswordButtonText: {
+        color: '#FFFFFF',
+        textAlign: 'center',
+        fontSize: 15,
+        fontWeight: '600',
+        letterSpacing: 2,
+    },
 
     logoutButton: {
         width: '90%',
@@ -268,7 +295,7 @@ const styles = StyleSheet.create({
         borderColor: '#000000',
         borderRadius: 10,
         paddingVertical: 15,
-        marginTop: 30,
+        marginTop: 15,
     },
 
     logoutButtonText: {

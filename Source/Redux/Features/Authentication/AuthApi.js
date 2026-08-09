@@ -1,4 +1,5 @@
 import { baseApi } from '../../api/baseApi';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: builder => ({
@@ -35,6 +36,33 @@ export const authApi = baseApi.injectEndpoints({
       }),
     }),
 
+    changePassword: builder.mutation({
+      queryFn: async (data, _queryApi, _extraOptions, baseQuery) => {
+        try {
+          const accessToken = await AsyncStorage.getItem("accessToken");
+
+          const result = await baseQuery({
+            url: "users/change-password",
+            method: "POST",
+            body: data,
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          return result;
+
+        } catch (error) {
+          return {
+            error: {
+              status: "CUSTOM_ERROR",
+              error: error?.message || "Something went wrong",
+            },
+          };
+        }
+      },
+    }),
+
   }),
 });
 
@@ -43,4 +71,5 @@ export const {
   useVerifySignupOtpMutation,
   useLoginMutation,
   useVerifyLoginOtpMutation,
+  useChangePasswordMutation
 } = authApi;
