@@ -149,7 +149,7 @@ const ProfileScreen = () => {
                             onPress={() => navigation.navigate("ChangePassword")}
                         >
                             <Text style={styles.changePasswordButtonText}>
-                                Change Password
+                                CHANGE PASSWORD
                             </Text>
                         </TouchableOpacity>
 
