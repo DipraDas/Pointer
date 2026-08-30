@@ -50,6 +50,28 @@ export const authApi = baseApi.injectEndpoints({
         body: data,
       }),
     }),
+
+    getAllDevices: builder.query({
+      query: () => ({
+        url: "device",
+        method: "GET",
+      }),
+
+      providesTags: ["Device"],
+    }),
+
+    addDeviceToUser: builder.mutation({
+      query: (deviceId) => ({
+        url: "user/add-device",
+        method: "POST",
+
+        body: {
+          deviceId,
+        },
+      }),
+
+      invalidatesTags: ["User", "Device"],
+    }),
   }),
 });
 
@@ -60,4 +82,6 @@ export const {
   useVerifyLoginOtpMutation,
   useChangePasswordMutation,
   useSaveDeviceTokenMutation,
+  useGetAllDevicesQuery,
+  useAddDeviceToUserMutation,
 } = authApi;

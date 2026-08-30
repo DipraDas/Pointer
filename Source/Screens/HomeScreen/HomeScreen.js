@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
+
 import {
     ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -11,64 +15,82 @@ import {
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-
-const DEMO_USERS = [
-    {
-        id: '1',
-        name: 'John Pyn',
-        relationship: 'Son',
-        location: 'Melbourne Institute of Technology',
-        updatedAt: 'Updated just now',
-        status: 'Active',
-        initials: 'JP',
-    },
-    {
-        id: '2',
-        name: 'Sarah Das',
-        relationship: 'Sister',
-        location: 'Penrith Station, NSW',
-        updatedAt: 'Updated 2 minutes ago',
-        status: 'Active',
-        initials: 'SD',
-    },
-    {
-        id: '3',
-        name: 'Michael Das',
-        relationship: 'Father',
-        location: 'Westfield Penrith, NSW',
-        updatedAt: 'Updated 5 minutes ago',
-        status: 'Active',
-        initials: 'MD',
-    },
-];
+import { useSelector } from 'react-redux';
+import { useGetAllDevicesQuery, useAddDeviceToUserMutation } from '../../Redux/Features/Authentication/AuthApi';
 
 const HomeScreen = () => {
+
     const navigation = useNavigation();
 
-    const [username, setUsername] = useState('');
+    // Logged-in user from Redux
+    const reduxUser = useSelector(state => state.auth?.user);
+    const [loggedInUser, setLoggedInUser] = useState(reduxUser || null);
+    const [myDevices, setMyDevices] = useState(reduxUser?.devices || []);
     const [isLoading, setIsLoading] = useState(true);
+    const [deviceModalVisible, setDeviceModalVisible] = useState(false);
+    const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+
+    // Get every available device
+    const { data: deviceResponse, isLoading: isDevicesLoading, refetch: refetchDevices } = useGetAllDevicesQuery();
+    const [addDeviceToUser, { isLoading: isAddingDevice, },] = useAddDeviceToUserMutation();
+
+    const availableDevices = deviceResponse?.data || deviceResponse?.devices || [];
 
     useEffect(() => {
-        const getUserInformation = async () => {
-            try {
-                const savedUsername =
-                    await AsyncStorage.getItem('username');
 
-                setUsername(savedUsername || 'User');
+        const getUserInformation = async () => {
+
+            try {
+
+                // Redux user is preferred
+                if (reduxUser) {
+
+                    setLoggedInUser(reduxUser);
+
+                    setMyDevices(
+                        reduxUser?.devices || []
+                    );
+
+                    return;
+                }
+
+
+                // Fallback to AsyncStorage
+                const savedUser =
+                    await AsyncStorage.getItem('user');
+
+                if (savedUser) {
+
+                    const parsedUser =
+                        JSON.parse(savedUser);
+
+                    setLoggedInUser(parsedUser);
+
+                    setMyDevices(
+                        parsedUser?.devices || []
+                    );
+                }
+
             } catch (error) {
+
                 console.log(
-                    'Error getting username:',
-                    error,
+                    'Error getting user:',
+                    error
                 );
 
-                setUsername('User');
             } finally {
+
                 setIsLoading(false);
+
             }
         };
 
+
         getUserInformation();
-    }, []);
+
+    }, [reduxUser]);
+
+    const username = loggedInUser?.name || loggedInUser?.username || 'User';
 
     const getGreeting = () => {
         const currentHour = new Date().getHours();
@@ -90,6 +112,101 @@ const HomeScreen = () => {
         navigation.navigate('Map', {
             selectedUser: user,
         });
+    };
+
+    const handleAddDevice = async () => {
+
+        if (!selectedDeviceId) {
+
+            Alert.alert(
+                'Select Device',
+                'Please select a device first.'
+            );
+
+            return;
+        }
+
+
+        try {
+
+            const response =
+                await addDeviceToUser(
+                    selectedDeviceId
+                ).unwrap();
+
+
+            console.log(
+                'Device added:',
+                response
+            );
+
+
+            // Find selected device
+            const selectedDevice =
+                availableDevices.find(
+                    device =>
+                        (device._id || device.id) ===
+                        selectedDeviceId
+                );
+
+
+            if (selectedDevice) {
+
+                setMyDevices(previous => {
+
+                    const alreadyExists =
+                        previous.some(
+                            item =>
+                                (
+                                    item._id ||
+                                    item.id
+                                ) ===
+                                selectedDeviceId
+                        );
+
+
+                    if (alreadyExists) {
+                        return previous;
+                    }
+
+
+                    return [
+                        ...previous,
+                        selectedDevice,
+                    ];
+                });
+            }
+
+
+            setSelectedDeviceId(null);
+
+            setDeviceModalVisible(false);
+
+
+            Alert.alert(
+                'Device Added',
+                response?.message ||
+                'Device added successfully.'
+            );
+
+
+            refetchDevices();
+
+        } catch (error) {
+
+            console.log(
+                'Add device error:',
+                error
+            );
+
+
+            Alert.alert(
+                'Unable to Add Device',
+                error?.data?.message ||
+                'Failed to add device.'
+            );
+
+        }
     };
 
     if (isLoading) {
@@ -205,6 +322,182 @@ const HomeScreen = () => {
                         </View>
                     </View>
                 </View>
+
+                {/* Add device */}
+                <View style={styles.deviceHeader}>
+
+                    <View>
+
+                        <Text style={styles.deviceSectionTitle}>
+                            My Devices
+                        </Text>
+
+                        <Text style={styles.deviceSectionSubtitle}>
+                            {myDevices.length}
+                            {myDevices.length === 1
+                                ? ' device connected'
+                                : ' devices connected'}
+                        </Text>
+
+                    </View>
+
+
+                    <TouchableOpacity
+                        style={styles.addDeviceButton}
+                        activeOpacity={0.8}
+                        onPress={() => {
+
+                            setSelectedDeviceId(null);
+
+                            setDeviceModalVisible(true);
+
+                            refetchDevices();
+                        }}
+                    >
+
+                        <Text style={styles.addDevicePlus}>
+                            +
+                        </Text>
+
+                        <Text style={styles.addDeviceButtonText}>
+                            ADD DEVICE
+                        </Text>
+
+                    </TouchableOpacity>
+
+                </View>
+
+                {myDevices.length === 0 ? (
+
+                    <View style={styles.noDeviceCard}>
+
+                        <View style={styles.noDeviceIcon}>
+
+                            <Text style={styles.noDeviceIconText}>
+                                ⦿
+                            </Text>
+
+                        </View>
+
+
+                        <View style={styles.noDeviceInformation}>
+
+                            <Text style={styles.noDeviceTitle}>
+                                No device connected
+                            </Text>
+
+                            <Text style={styles.noDeviceSubtitle}>
+                                Add a tracking device to get started
+                            </Text>
+
+                        </View>
+
+                    </View>
+
+                ) : (
+
+                    <View style={styles.deviceList}>
+
+                        {myDevices.map((device, index) => {
+
+                            const deviceId =
+                                device._id ||
+                                device.id;
+
+                            const deviceName =
+                                device.name ||
+                                device.deviceName ||
+                                device.deviceId ||
+                                'Tracking Device';
+
+
+                            return (
+
+                                <TouchableOpacity
+                                    key={deviceId || index}
+                                    style={[
+                                        styles.myDeviceItem,
+
+                                        index !==
+                                        myDevices.length - 1 &&
+                                        styles.myDeviceBorder,
+                                    ]}
+                                    activeOpacity={0.7}
+                                    onPress={() =>
+                                        navigation.navigate(
+                                            'Map',
+                                            {
+                                                device,
+                                            }
+                                        )
+                                    }
+                                >
+
+                                    <View style={styles.deviceCircle}>
+
+                                        <Text
+                                            style={
+                                                styles.deviceCircleText
+                                            }
+                                        >
+                                            ⦿
+                                        </Text>
+
+                                    </View>
+
+
+                                    <View
+                                        style={
+                                            styles.deviceInformation
+                                        }
+                                    >
+
+                                        <Text style={styles.deviceName}>
+                                            {deviceName}
+                                        </Text>
+
+                                        <Text
+                                            style={
+                                                styles.deviceIdText
+                                            }
+                                        >
+                                            {device.deviceCode ||
+                                                device.serialNumber ||
+                                                device.deviceId ||
+                                                'Connected device'}
+                                        </Text>
+
+                                    </View>
+
+
+                                    <View
+                                        style={
+                                            styles.connectedStatus
+                                        }
+                                    >
+
+                                        <View
+                                            style={
+                                                styles.connectedDot
+                                            }
+                                        />
+
+                                        <Text
+                                            style={
+                                                styles.connectedText
+                                            }
+                                        >
+                                            ADDED
+                                        </Text>
+
+                                    </View>
+
+                                </TouchableOpacity>
+                            );
+                        })}
+
+                    </View>
+                )}
 
                 {/* Quick actions */}
 
@@ -364,7 +657,7 @@ const HomeScreen = () => {
                 </View>
 
                 {/* Live locations */}
-{/* 
+                {/* 
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>
                         Live Location Updates
@@ -432,6 +725,338 @@ const HomeScreen = () => {
                     ))}
                 </View> */}
             </ScrollView>
+
+            <Modal
+                visible={deviceModalVisible}
+                transparent
+                animationType="fade"
+                statusBarTranslucent
+                onRequestClose={() =>
+                    setDeviceModalVisible(false)
+                }
+            >
+
+                <View style={styles.modalOverlay}>
+
+                    <View style={styles.modalContainer}>
+
+
+                        {/* MODAL HEADER */}
+
+                        <View style={styles.modalHeader}>
+
+                            <View>
+
+                                <Text style={styles.modalTitle}>
+                                    ADD DEVICE
+                                </Text>
+
+                                <Text style={styles.modalSubtitle}>
+                                    Select an available device
+                                </Text>
+
+                            </View>
+
+
+                            <TouchableOpacity
+                                style={styles.closeButton}
+                                onPress={() =>
+                                    setDeviceModalVisible(false)
+                                }
+                            >
+
+                                <Text style={styles.closeButtonText}>
+                                    ×
+                                </Text>
+
+                            </TouchableOpacity>
+
+                        </View>
+
+
+                        <View style={styles.modalDivider} />
+
+
+                        {/* DEVICE LIST */}
+
+                        {isDevicesLoading ? (
+
+                            <View style={styles.modalLoading}>
+
+                                <ActivityIndicator
+                                    size="large"
+                                    color="#000000"
+                                />
+
+                                <Text
+                                    style={
+                                        styles.loadingDeviceText
+                                    }
+                                >
+                                    Finding available devices...
+                                </Text>
+
+                            </View>
+
+                        ) : availableDevices.length === 0 ? (
+
+                            <View style={styles.emptyDevices}>
+
+                                <View
+                                    style={
+                                        styles.emptyDeviceCircle
+                                    }
+                                >
+
+                                    <Text
+                                        style={
+                                            styles.emptyDeviceIcon
+                                        }
+                                    >
+                                        ⦿
+                                    </Text>
+
+                                </View>
+
+                                <Text style={styles.emptyDeviceTitle}>
+                                    No devices available
+                                </Text>
+
+                                <Text
+                                    style={
+                                        styles.emptyDeviceSubtitle
+                                    }
+                                >
+                                    There are currently no devices
+                                    available to add.
+                                </Text>
+
+                            </View>
+
+                        ) : (
+
+                            <ScrollView
+                                style={styles.availableDeviceList}
+                                showsVerticalScrollIndicator={false}
+                            >
+
+                                {availableDevices.map(
+                                    (device, index) => {
+
+                                        const deviceId =
+                                            device._id ||
+                                            device.id;
+
+                                        const isSelected =
+                                            selectedDeviceId ===
+                                            deviceId;
+
+
+                                        const alreadyAdded =
+                                            myDevices.some(
+                                                item =>
+                                                    (
+                                                        item._id ||
+                                                        item.id
+                                                    ) ===
+                                                    deviceId
+                                            );
+
+
+                                        return (
+
+                                            <TouchableOpacity
+                                                key={
+                                                    deviceId ||
+                                                    index
+                                                }
+                                                style={[
+                                                    styles.availableDevice,
+
+                                                    isSelected &&
+                                                    styles.selectedDevice,
+
+                                                    alreadyAdded &&
+                                                    styles.alreadyAddedDevice,
+                                                ]}
+                                                disabled={
+                                                    alreadyAdded
+                                                }
+                                                activeOpacity={0.75}
+                                                onPress={() =>
+                                                    setSelectedDeviceId(
+                                                        deviceId
+                                                    )
+                                                }
+                                            >
+
+                                                <View
+                                                    style={[
+                                                        styles.availableDeviceIcon,
+
+                                                        isSelected &&
+                                                        styles.selectedDeviceIcon,
+                                                    ]}
+                                                >
+
+                                                    <Text
+                                                        style={[
+                                                            styles.availableDeviceIconText,
+
+                                                            isSelected &&
+                                                            styles.selectedDeviceIconText,
+                                                        ]}
+                                                    >
+                                                        ⦿
+                                                    </Text>
+
+                                                </View>
+
+
+                                                <View
+                                                    style={
+                                                        styles.availableDeviceInfo
+                                                    }
+                                                >
+
+                                                    <Text
+                                                        style={
+                                                            styles.availableDeviceName
+                                                        }
+                                                    >
+                                                        {device.name ||
+                                                            device.deviceName ||
+                                                            'Tracking Device'}
+                                                    </Text>
+
+
+                                                    <Text
+                                                        style={
+                                                            styles.availableDeviceCode
+                                                        }
+                                                    >
+                                                        {device.deviceCode ||
+                                                            device.serialNumber ||
+                                                            device.deviceId ||
+                                                            deviceId}
+                                                    </Text>
+
+                                                </View>
+
+
+                                                {alreadyAdded ? (
+
+                                                    <View
+                                                        style={
+                                                            styles.addedBadge
+                                                        }
+                                                    >
+
+                                                        <Text
+                                                            style={
+                                                                styles.addedBadgeText
+                                                            }
+                                                        >
+                                                            ADDED
+                                                        </Text>
+
+                                                    </View>
+
+                                                ) : (
+
+                                                    <View
+                                                        style={[
+                                                            styles.radioOuter,
+
+                                                            isSelected &&
+                                                            styles.radioOuterSelected,
+                                                        ]}
+                                                    >
+
+                                                        {isSelected && (
+                                                            <View
+                                                                style={
+                                                                    styles.radioInner
+                                                                }
+                                                            />
+                                                        )}
+
+                                                    </View>
+
+                                                )}
+
+                                            </TouchableOpacity>
+                                        );
+                                    }
+                                )}
+
+                            </ScrollView>
+                        )}
+
+
+                        {/* BUTTON */}
+
+                        <TouchableOpacity
+                            style={[
+                                styles.confirmAddButton,
+
+                                (!selectedDeviceId ||
+                                    isAddingDevice) &&
+                                styles.disabledAddButton,
+                            ]}
+                            disabled={
+                                !selectedDeviceId ||
+                                isAddingDevice
+                            }
+                            onPress={handleAddDevice}
+                        >
+
+                            {isAddingDevice ? (
+
+                                <ActivityIndicator
+                                    size="small"
+                                    color="#FFFFFF"
+                                />
+
+                            ) : (
+
+                                <Text
+                                    style={
+                                        styles.confirmAddButtonText
+                                    }
+                                >
+                                    ADD SELECTED DEVICE
+                                </Text>
+
+                            )}
+
+                        </TouchableOpacity>
+
+
+                        <TouchableOpacity
+                            style={styles.cancelModalButton}
+                            onPress={() =>
+                                setDeviceModalVisible(false)
+                            }
+                            disabled={isAddingDevice}
+                        >
+
+                            <Text
+                                style={
+                                    styles.cancelModalText
+                                }
+                            >
+                                CANCEL
+                            </Text>
+
+                        </TouchableOpacity>
+
+
+                    </View>
+
+                </View>
+
+            </Modal>
         </>
     );
 };
@@ -893,5 +1518,404 @@ const styles = StyleSheet.create({
         color: '#388C4E',
         fontSize: 11,
         fontWeight: '700',
+    },
+
+    deviceHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 27,
+        marginBottom: 12,
+    },
+
+    deviceSectionTitle: {
+        color: '#000000',
+        fontSize: 19,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    },
+
+    deviceSectionSubtitle: {
+        color: '#999999',
+        fontSize: 11,
+        marginTop: 3,
+    },
+
+    addDeviceButton: {
+        height: 38,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#111111',
+        paddingHorizontal: 13,
+        borderRadius: 11,
+    },
+
+    addDevicePlus: {
+        color: '#FFFFFF',
+        fontSize: 19,
+        fontWeight: '400',
+        marginRight: 6,
+    },
+
+    addDeviceButtonText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.8,
+    },
+
+
+    /* MY DEVICES */
+
+    deviceList: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5E5E5',
+        borderRadius: 17,
+        overflow: 'hidden',
+    },
+
+    myDeviceItem: {
+        minHeight: 76,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+    },
+
+    myDeviceBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#EEEEEE',
+    },
+
+    deviceCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#111111',
+    },
+
+    deviceCircleText: {
+        color: '#FFFFFF',
+        fontSize: 20,
+    },
+
+    deviceInformation: {
+        flex: 1,
+        marginLeft: 12,
+    },
+
+    deviceName: {
+        color: '#111111',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+
+    deviceIdText: {
+        color: '#999999',
+        fontSize: 11,
+        marginTop: 4,
+    },
+
+    connectedStatus: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    connectedDot: {
+        width: 6,
+        height: 6,
+        backgroundColor: '#47B966',
+        borderRadius: 3,
+        marginRight: 5,
+    },
+
+    connectedText: {
+        color: '#388C4E',
+        fontSize: 9,
+        fontWeight: '700',
+        letterSpacing: 0.6,
+    },
+
+
+    /* NO DEVICE */
+
+    noDeviceCard: {
+        minHeight: 82,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F7F7F7',
+        borderWidth: 1,
+        borderColor: '#E8E8E8',
+        borderRadius: 17,
+        paddingHorizontal: 15,
+    },
+
+    noDeviceIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#E8E8E8',
+    },
+
+    noDeviceIconText: {
+        color: '#777777',
+        fontSize: 20,
+    },
+
+    noDeviceInformation: {
+        marginLeft: 12,
+        flex: 1,
+    },
+
+    noDeviceTitle: {
+        color: '#111111',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+
+    noDeviceSubtitle: {
+        color: '#999999',
+        fontSize: 11,
+        marginTop: 3,
+    },
+
+
+    /* MODAL */
+
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        justifyContent: 'center',
+        paddingHorizontal: 18,
+    },
+
+    modalContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 22,
+        padding: 20,
+        maxHeight: '80%',
+    },
+
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+
+    modalTitle: {
+        color: '#111111',
+        fontSize: 20,
+        fontFamily: 'Quantico-Bold',
+        letterSpacing: 2,
+    },
+
+    modalSubtitle: {
+        color: '#999999',
+        fontSize: 12,
+        marginTop: 4,
+    },
+
+    closeButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F2F2F2',
+    },
+
+    closeButtonText: {
+        color: '#111111',
+        fontSize: 25,
+        lineHeight: 27,
+    },
+
+    modalDivider: {
+        height: 1,
+        backgroundColor: '#EEEEEE',
+        marginTop: 17,
+        marginBottom: 13,
+    },
+
+    availableDeviceList: {
+        maxHeight: 330,
+    },
+
+    availableDevice: {
+        minHeight: 72,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        backgroundColor: '#F7F7F7',
+        borderWidth: 1,
+        borderColor: '#EEEEEE',
+        borderRadius: 14,
+        marginBottom: 9,
+    },
+
+    selectedDevice: {
+        backgroundColor: '#111111',
+        borderColor: '#111111',
+    },
+
+    alreadyAddedDevice: {
+        opacity: 0.5,
+    },
+
+    availableDeviceIcon: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#E8E8E8',
+    },
+
+    selectedDeviceIcon: {
+        backgroundColor: '#FFFFFF',
+    },
+
+    availableDeviceIconText: {
+        color: '#111111',
+        fontSize: 18,
+    },
+
+    selectedDeviceIconText: {
+        color: '#111111',
+    },
+
+    availableDeviceInfo: {
+        flex: 1,
+        marginLeft: 11,
+    },
+
+    availableDeviceName: {
+        color: '#111111',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+
+    availableDeviceCode: {
+        color: '#999999',
+        fontSize: 10,
+        marginTop: 3,
+    },
+
+    radioOuter: {
+        width: 21,
+        height: 21,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        borderColor: '#BBBBBB',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    radioOuterSelected: {
+        borderColor: '#FFFFFF',
+    },
+
+    radioInner: {
+        width: 9,
+        height: 9,
+        borderRadius: 5,
+        backgroundColor: '#FFFFFF',
+    },
+
+    addedBadge: {
+        backgroundColor: '#EAF8EE',
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: 10,
+    },
+
+    addedBadgeText: {
+        color: '#278442',
+        fontSize: 9,
+        fontWeight: '700',
+    },
+
+    confirmAddButton: {
+        height: 52,
+        backgroundColor: '#111111',
+        borderRadius: 13,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 12,
+    },
+
+    disabledAddButton: {
+        opacity: 0.4,
+    },
+
+    confirmAddButtonText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 1.3,
+    },
+
+    cancelModalButton: {
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 5,
+    },
+
+    cancelModalText: {
+        color: '#777777',
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1,
+    },
+
+    modalLoading: {
+        alignItems: 'center',
+        paddingVertical: 45,
+    },
+
+    loadingDeviceText: {
+        color: '#777777',
+        fontSize: 12,
+        marginTop: 12,
+    },
+
+    emptyDevices: {
+        alignItems: 'center',
+        paddingVertical: 30,
+    },
+
+    emptyDeviceCircle: {
+        width: 55,
+        height: 55,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F1F1F1',
+    },
+
+    emptyDeviceIcon: {
+        color: '#777777',
+        fontSize: 23,
+    },
+
+    emptyDeviceTitle: {
+        color: '#111111',
+        fontSize: 15,
+        fontWeight: '700',
+        marginTop: 12,
+    },
+
+    emptyDeviceSubtitle: {
+        color: '#999999',
+        fontSize: 11,
+        textAlign: 'center',
+        marginTop: 5,
     },
 });
