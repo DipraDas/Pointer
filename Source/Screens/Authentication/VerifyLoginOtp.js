@@ -14,6 +14,7 @@ import {
   useNavigation,
 } from '@react-navigation/native';
 
+import { useSaveDeviceTokenMutation } from '../../Redux/Features/Authentication/AuthApi';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import LinearGradient from 'react-native-linear-gradient';
@@ -30,11 +31,19 @@ import {
   setEmail,
   setPassword,
 } from '../../Redux/Features/Authentication/AuthSlice';
+import {
+  getMessaging,
+  getToken,
+} from '@react-native-firebase/messaging';
+import {
+  requestNotificationPermission,
+} from '../../Services/NotificationService';
 
 const VerifyLoginOtp = () => {
   const route = useRoute();
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const [saveDeviceToken] = useSaveDeviceTokenMutation();
 
   const email = route.params?.email || '';
 
@@ -71,7 +80,6 @@ const VerifyLoginOtp = () => {
         'Login OTP verification response:',
         response,
       );
-
       const accessToken = response?.data?.accessToken;
       const user = response?.data?.user;
 
@@ -83,11 +91,61 @@ const VerifyLoginOtp = () => {
         return;
       }
 
+      // 1. SAVE JWT
       await AsyncStorage.setItem(
         'accessToken',
         accessToken,
       );
 
+      console.log('Saved access token');
+      await requestNotificationPermission();
+
+      // 2. GET FCM TOKEN
+      try {
+        console.log('Starting FCM...');
+
+        const messagingInstance = getMessaging();
+
+        console.log('Messaging instance created');
+
+        const fcmToken = await getToken(
+          messagingInstance,
+        );
+
+        console.log(
+          'FCM token obtained:',
+          !!fcmToken,
+        );
+
+        // 3. SEND FCM TOKEN
+        if (fcmToken) {
+          console.log(
+            'Saving FCM token to backend...',
+          );
+
+          await saveDeviceToken({
+            token: fcmToken,
+            platform: 'android',
+          }).unwrap();
+
+          console.log(
+            'FCM token saved to backend',
+          );
+        }
+
+      } catch (fcmError) {
+        console.log(
+          '========== FCM ERROR ==========',
+        );
+
+        console.log('FCM error:', fcmError);
+
+        console.log(
+          '================================',
+        );
+      }
+
+      // 4. Save user information
       if (user) {
         const username =
           user.username || user.name || '';
@@ -110,23 +168,26 @@ const VerifyLoginOtp = () => {
         console.log('Saved username:', username);
         console.log('Saved email:', userEmail);
       } else {
-        await AsyncStorage.setItem('email', email);
+        await AsyncStorage.setItem(
+          'email',
+          email,
+        );
 
         console.log('Saved email:', email);
       }
 
-      console.log('Saved access token:', accessToken);
-
-      // Clear OTP, login email and password inputs
+      // 5. Clear login fields
       setOtp('');
+
       dispatch(setEmail(''));
       dispatch(setPassword(''));
 
-      // Navigate to the main application
+      // 6. Go to Main
       navigation.reset({
         index: 0,
         routes: [{ name: 'Main' }],
       });
+
     } catch (error) {
       console.log(
         'Login OTP verification error:',

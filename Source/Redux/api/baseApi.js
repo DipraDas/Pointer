@@ -1,31 +1,36 @@
-// import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-
-// export const baseApi = createApi({
-//   reducerPath: 'baseApi',
-
-//   baseQuery: fetchBaseQuery({
-//     baseUrl: 'http://10.0.2.2:5001/api/', // replace with your PC IP
-//   }),
-
-//   tagTypes: ['User'],
-
-//   endpoints: () => ({}),
-// });
-
 import {
   createApi,
   fetchBaseQuery,
 } from '@reduxjs/toolkit/query/react';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export const baseApi = createApi({
   reducerPath: 'baseApi',
 
   baseQuery: fetchBaseQuery({
-    // baseUrl: 'http://192.168.20.21:5001/api/',
-    // ipconfig getifaddr en0
-    // Emulator: 10.0.2.2
-    // Real Samsung A51: USB + adb reverse
-    baseUrl: 'http://192.168.0.102:5000/api',
+    baseUrl: 'http://192.168.0.105:5000/api',
+
+    prepareHeaders: async headers => {
+      const accessToken =
+        await AsyncStorage.getItem('accessToken');
+
+      console.log(
+        'Authorization token:',
+        accessToken
+          ? 'FOUND'
+          : 'NOT FOUND',
+      );
+
+      if (accessToken) {
+        headers.set(
+          'Authorization',
+          `Bearer ${accessToken}`,
+        );
+      }
+
+      return headers;
+    },
   }),
 
   tagTypes: ['User'],
