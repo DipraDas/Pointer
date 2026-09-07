@@ -9,18 +9,12 @@ export const baseApi = createApi({
   reducerPath: 'baseApi',
 
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://192.168.0.105:5000/api',
+    // baseUrl: "http://192.168.20.21:5001/api/",
+    baseUrl: "http://172.20.10.3:5001/api/",
 
     prepareHeaders: async headers => {
       const accessToken =
         await AsyncStorage.getItem('accessToken');
-
-      console.log(
-        'Authorization token:',
-        accessToken
-          ? 'FOUND'
-          : 'NOT FOUND',
-      );
 
       if (accessToken) {
         headers.set(
@@ -33,7 +27,7 @@ export const baseApi = createApi({
     },
   }),
 
-  tagTypes: ['User'],
+  tagTypes: ['User', 'Device'],
 
   endpoints: () => ({}),
 });

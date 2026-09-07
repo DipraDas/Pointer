@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     Modal,
     ScrollView,
     StatusBar,
@@ -16,7 +15,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
-import { useGetAllDevicesQuery, useAddDeviceToUserMutation } from '../../Redux/Features/Authentication/AuthApi';
+
+import {
+    useGetAllDevicesQuery,
+    useAddDeviceToUserMutation,
+    useGetCurrentUserQuery,
+} from '../../Redux/Features/Authentication/AuthApi';
+
 
 const HomeScreen = () => {
 
@@ -24,52 +29,136 @@ const HomeScreen = () => {
 
     // Logged-in user from Redux
     const reduxUser = useSelector(state => state.auth?.user);
-    const [loggedInUser, setLoggedInUser] = useState(reduxUser || null);
-    const [myDevices, setMyDevices] = useState(reduxUser?.devices || []);
+
+
+    const [storedUsername, setStoredUsername] = useState('');
+    const [loggedInUser, setLoggedInUser] = useState(
+        reduxUser || null
+    );
+
+    // IMPORTANT:
+    // This will contain FULL DEVICE OBJECTS,
+    // not only MongoDB ObjectIds.
+    const {
+        data: currentUserResponse,
+        isLoading: isCurrentUserLoading,
+        refetch: refetchCurrentUser,
+    } = useGetCurrentUserQuery();
+
+    const currentUser =
+        currentUserResponse?.data || null;
+
+    const myDevices =
+        currentUser?.devices || [];
+
     const [isLoading, setIsLoading] = useState(true);
-    const [deviceModalVisible, setDeviceModalVisible] = useState(false);
-    const [selectedDeviceId, setSelectedDeviceId] = useState(null);
 
-    // Get every available device
-    const { data: deviceResponse, isLoading: isDevicesLoading, refetch: refetchDevices } = useGetAllDevicesQuery();
-    const [addDeviceToUser, { isLoading: isAddingDevice, },] = useAddDeviceToUserMutation();
+    const [
+        deviceModalVisible,
+        setDeviceModalVisible
+    ] = useState(false);
 
-    const availableDevices = deviceResponse?.data || deviceResponse?.devices || [];
+    const [
+        selectedDeviceId,
+        setSelectedDeviceId
+    ] = useState(null);
+
+
+    // ============================================
+    // GET ALL DEVICES
+    // ============================================
+
+    const {
+        data: deviceResponse,
+        isLoading: isDevicesLoading,
+        refetch: refetchDevices,
+    } = useGetAllDevicesQuery();
+
+
+    // ============================================
+    // ADD DEVICE TO USER
+    // ============================================
+
+    const [
+        addDeviceToUser,
+        {
+            isLoading: isAddingDevice
+        }
+    ] = useAddDeviceToUserMutation();
+
+
+    // ============================================
+    // AVAILABLE DEVICES
+    // ============================================
+
+    const availableDevices =
+        deviceResponse?.data ||
+        deviceResponse?.devices ||
+        [];
+
+
+    // ============================================
+    // LOAD LOGGED-IN USER
+    // ============================================
 
     useEffect(() => {
-
         const getUserInformation = async () => {
 
             try {
 
-                // Redux user is preferred
+                // Get separately saved username
+                const savedUsername =
+                    await AsyncStorage.getItem('username');
+
+                const savedEmail =
+                    await AsyncStorage.getItem('email');
+
+
+                console.log(
+                    'STORED USERNAME:',
+                    savedUsername
+                );
+
+                console.log(
+                    'STORED EMAIL:',
+                    savedEmail
+                );
+
+
+                if (savedUsername) {
+
+                    setStoredUsername(
+                        savedUsername
+                    );
+                }
+
+
+                // Keep Redux user data if available
                 if (reduxUser) {
 
-                    setLoggedInUser(reduxUser);
-
-                    setMyDevices(
-                        reduxUser?.devices || []
+                    setLoggedInUser(
+                        reduxUser
                     );
 
                     return;
                 }
 
 
-                // Fallback to AsyncStorage
+                // Optional old user object
                 const savedUser =
                     await AsyncStorage.getItem('user');
+
 
                 if (savedUser) {
 
                     const parsedUser =
                         JSON.parse(savedUser);
 
-                    setLoggedInUser(parsedUser);
-
-                    setMyDevices(
-                        parsedUser?.devices || []
+                    setLoggedInUser(
+                        parsedUser
                     );
                 }
+
 
             } catch (error) {
 
@@ -81,8 +170,8 @@ const HomeScreen = () => {
             } finally {
 
                 setIsLoading(false);
-
             }
+
         };
 
 
@@ -90,32 +179,95 @@ const HomeScreen = () => {
 
     }, [reduxUser]);
 
-    const username = loggedInUser?.name || loggedInUser?.username || 'User';
+
+    // ============================================
+    // FIND USER'S DEVICES
+    // ============================================
+    //
+    // MongoDB user:
+    //
+    // devices: [
+    //     ObjectId("6a9520...")
+    // ]
+    //
+    // GET /devices:
+    //
+    // [
+    //   {
+    //      _id: "6a9520...",
+    //      deviceName: "...",
+    //      serialNumber: "..."
+    //   }
+    // ]
+    //
+    // We match those IDs here.
+    // ============================================
+
+
+    // ============================================
+    // USERNAME
+    // ============================================
+
+    const username =
+        storedUsername ||
+        loggedInUser?.name ||
+        loggedInUser?.username ||
+        'User';
+
+    // ============================================
+    // GREETING
+    // ============================================
 
     const getGreeting = () => {
-        const currentHour = new Date().getHours();
+
+        const currentHour =
+            new Date().getHours();
+
 
         if (currentHour < 12) {
+
             return 'Good morning';
         }
 
+
         if (currentHour < 18) {
+
             return 'Good afternoon';
         }
+
 
         return 'Good evening';
     };
 
-    const openMap = user => {
-        console.log('Selected user:', user);
 
-        navigation.navigate('Map', {
-            selectedUser: user,
-        });
+    // ============================================
+    // OPEN MAP
+    // ============================================
+
+    const openMap = user => {
+
+        console.log(
+            'Selected user:',
+            user
+        );
+
+
+        navigation.navigate(
+            'Map',
+            {
+                selectedUser: user,
+            }
+        );
     };
+
+
+    // ============================================
+    // ADD DEVICE
+    // ============================================
 
     const handleAddDevice = async () => {
 
+        // Check selection
         if (!selectedDeviceId) {
 
             Alert.alert(
@@ -127,57 +279,215 @@ const HomeScreen = () => {
         }
 
 
+        // Find full selected device object
+        const selectedDevice =
+            availableDevices.find(device => {
+
+                const id =
+                    device._id ||
+                    device.id;
+
+
+                return (
+                    String(id) ===
+                    String(selectedDeviceId)
+                );
+            });
+
+
+        if (!selectedDevice) {
+
+            Alert.alert(
+                'Error',
+                'Selected device could not be found.'
+            );
+
+            return;
+        }
+
+
+        // Get serial number
+        const serialNumber =
+            selectedDevice.serialNumber;
+
+
+        // Get email
+        let email =
+            loggedInUser?.email;
+
+
+        // If Redux/user doesn't contain email,
+        // try AsyncStorage
+        if (!email) {
+
+            const savedEmail =
+                await AsyncStorage.getItem(
+                    'email'
+                );
+
+
+            if (savedEmail) {
+
+                email = savedEmail;
+            }
+        }
+
+
+        console.log(
+            'EMAIL:',
+            email
+        );
+
+
+        console.log(
+            'SERIAL NUMBER:',
+            serialNumber
+        );
+
+
+        console.log(
+            'SELECTED DEVICE:',
+            selectedDevice
+        );
+
+
+        // Validate email
+        if (!email) {
+
+            Alert.alert(
+                'Error',
+                'Logged-in user email was not found.'
+            );
+
+            return;
+        }
+
+
+        // Validate serial number
+        if (!serialNumber) {
+
+            Alert.alert(
+                'Error',
+                'Device serial number was not found.'
+            );
+
+            return;
+        }
+
+
         try {
 
+            // IMPORTANT:
+            // Backend expects:
+            //
+            // {
+            //    email,
+            //    serialNumber
+            // }
+
             const response =
-                await addDeviceToUser(
-                    selectedDeviceId
-                ).unwrap();
+                await addDeviceToUser({
+
+                    email,
+                    serialNumber,
+
+                }).unwrap();
 
 
             console.log(
-                'Device added:',
+                'DEVICE ADDED:',
                 response
             );
 
 
-            // Find selected device
-            const selectedDevice =
-                availableDevices.find(
-                    device =>
-                        (device._id || device.id) ===
-                        selectedDeviceId
-                );
+            // ====================================
+            // UPDATE USER LOCALLY
+            // ====================================
+
+            const currentDeviceIds =
+                loggedInUser?.devices || [];
 
 
-            if (selectedDevice) {
+            const deviceAlreadySaved =
+                currentDeviceIds.some(item => {
 
-                setMyDevices(previous => {
-
-                    const alreadyExists =
-                        previous.some(
-                            item =>
-                                (
-                                    item._id ||
-                                    item.id
-                                ) ===
-                                selectedDeviceId
-                        );
+                    const userDeviceId =
+                        typeof item === 'object'
+                            ? (
+                                item?._id ||
+                                item?.id
+                            )
+                            : item;
 
 
-                    if (alreadyExists) {
-                        return previous;
-                    }
-
-
-                    return [
-                        ...previous,
-                        selectedDevice,
-                    ];
+                    return (
+                        String(userDeviceId) ===
+                        String(selectedDeviceId)
+                    );
                 });
-            }
 
 
+            const updatedUser = {
+
+                ...(loggedInUser || {}),
+
+                devices: deviceAlreadySaved
+
+                    ? currentDeviceIds
+
+                    : [
+                        ...currentDeviceIds,
+                        selectedDeviceId
+                    ],
+            };
+
+
+            // Update state
+            setLoggedInUser(
+                updatedUser
+            );
+
+
+            // Update AsyncStorage
+            await AsyncStorage.setItem(
+                'user',
+                JSON.stringify(updatedUser)
+            );
+
+
+            // ====================================
+            // UPDATE UI IMMEDIATELY
+            // ====================================
+
+            setMyDevices(previous => {
+
+                const alreadyExists =
+                    previous.some(device => {
+
+                        return (
+                            String(
+                                device._id ||
+                                device.id
+                            ) ===
+                            String(selectedDeviceId)
+                        );
+                    });
+
+
+                if (alreadyExists) {
+
+                    return previous;
+                }
+
+
+                return [
+                    ...previous,
+                    selectedDevice
+                ];
+            });
+
+
+            // Reset modal
             setSelectedDeviceId(null);
 
             setDeviceModalVisible(false);
@@ -190,22 +500,29 @@ const HomeScreen = () => {
             );
 
 
+            // Refresh device API
             refetchDevices();
+
 
         } catch (error) {
 
             console.log(
-                'Add device error:',
-                error
+                'ADD DEVICE ERROR:',
+                JSON.stringify(
+                    error,
+                    null,
+                    2
+                )
             );
 
 
             Alert.alert(
                 'Unable to Add Device',
+
                 error?.data?.message ||
+                error?.error ||
                 'Failed to add device.'
             );
-
         }
     };
 
@@ -289,11 +606,11 @@ const HomeScreen = () => {
                     <View style={styles.safetyStatistics}>
                         <View style={styles.statistic}>
                             <Text style={styles.statisticNumber}>
-                                3
+                                {myDevices.length}
                             </Text>
 
                             <Text style={styles.statisticLabel}>
-                                People
+                                Devices
                             </Text>
                         </View>
 
@@ -301,7 +618,7 @@ const HomeScreen = () => {
 
                         <View style={styles.statistic}>
                             <Text style={styles.statisticNumber}>
-                                3
+                                0
                             </Text>
 
                             <Text style={styles.statisticLabel}>
@@ -346,7 +663,6 @@ const HomeScreen = () => {
                         style={styles.addDeviceButton}
                         activeOpacity={0.8}
                         onPress={() => {
-
                             setSelectedDeviceId(null);
 
                             setDeviceModalVisible(true);
@@ -354,15 +670,11 @@ const HomeScreen = () => {
                             refetchDevices();
                         }}
                     >
-
-                        <Text style={styles.addDevicePlus}>
-                            +
-                        </Text>
+                        <Text style={styles.addDevicePlus}>+</Text>
 
                         <Text style={styles.addDeviceButtonText}>
                             ADD DEVICE
                         </Text>
-
                     </TouchableOpacity>
 
                 </View>
@@ -405,11 +717,9 @@ const HomeScreen = () => {
                                 device.id;
 
                             const deviceName =
-                                device.name ||
                                 device.deviceName ||
-                                device.deviceId ||
+                                device.name ||
                                 'Tracking Device';
-
 
                             return (
 
@@ -417,12 +727,10 @@ const HomeScreen = () => {
                                     key={deviceId || index}
                                     style={[
                                         styles.myDeviceItem,
-
-                                        index !==
-                                        myDevices.length - 1 &&
+                                        index !== myDevices.length - 1 &&
                                         styles.myDeviceBorder,
                                     ]}
-                                    activeOpacity={0.7}
+                                    activeOpacity={0.75}
                                     onPress={() =>
                                         navigation.navigate(
                                             'Map',
@@ -433,61 +741,50 @@ const HomeScreen = () => {
                                     }
                                 >
 
+                                    {/* DEVICE INITIAL */}
+
                                     <View style={styles.deviceCircle}>
 
-                                        <Text
-                                            style={
-                                                styles.deviceCircleText
-                                            }
-                                        >
-                                            ⦿
+                                        <Text style={styles.deviceCircleText}>
+                                            {deviceName
+                                                .charAt(0)
+                                                .toUpperCase()}
                                         </Text>
 
                                     </View>
 
 
-                                    <View
-                                        style={
-                                            styles.deviceInformation
-                                        }
-                                    >
+                                    {/* DEVICE INFO */}
+
+                                    <View style={styles.deviceInformation}>
 
                                         <Text style={styles.deviceName}>
                                             {deviceName}
                                         </Text>
 
-                                        <Text
-                                            style={
-                                                styles.deviceIdText
-                                            }
-                                        >
-                                            {device.deviceCode ||
-                                                device.serialNumber ||
-                                                device.deviceId ||
+                                        <Text style={styles.deviceIdText}>
+                                            {device.serialNumber ||
                                                 'Connected device'}
                                         </Text>
+
+
+                                        <View style={styles.deviceMetaRow}>
+
+                                            <View style={styles.deviceMetaDot} />
+
+                                        </View>
 
                                     </View>
 
 
-                                    <View
-                                        style={
-                                            styles.connectedStatus
-                                        }
-                                    >
+                                    {/* STATUS */}
 
-                                        <View
-                                            style={
-                                                styles.connectedDot
-                                            }
-                                        />
+                                    <View style={styles.connectedStatus}>
 
-                                        <Text
-                                            style={
-                                                styles.connectedText
-                                            }
-                                        >
-                                            ADDED
+                                        <View style={styles.connectedDot} />
+
+                                        <Text style={styles.connectedText}>
+                                            CONNECTED
                                         </Text>
 
                                     </View>
@@ -523,7 +820,7 @@ const HomeScreen = () => {
                         </Text>
 
                         <Text style={styles.actionSubtitle}>
-                            3 members
+                           {myDevices.length} members
                         </Text>
                     </TouchableOpacity>
 
@@ -913,32 +1210,24 @@ const HomeScreen = () => {
                                                 </View>
 
 
-                                                <View
-                                                    style={
-                                                        styles.availableDeviceInfo
-                                                    }
-                                                >
+                                                <View style={styles.availableDeviceInfo}>
 
                                                     <Text
-                                                        style={
-                                                            styles.availableDeviceName
-                                                        }
+                                                        style={[
+                                                            styles.availableDeviceName,
+                                                            isSelected && styles.selectedDeviceName,
+                                                        ]}
                                                     >
-                                                        {device.name ||
-                                                            device.deviceName ||
-                                                            'Tracking Device'}
+                                                        {device.deviceName || 'Tracking Device'}
                                                     </Text>
 
-
                                                     <Text
-                                                        style={
-                                                            styles.availableDeviceCode
-                                                        }
+                                                        style={[
+                                                            styles.availableDeviceCode,
+                                                            isSelected && styles.selectedDeviceCode,
+                                                        ]}
                                                     >
-                                                        {device.deviceCode ||
-                                                            device.serialNumber ||
-                                                            device.deviceId ||
-                                                            deviceId}
+                                                        {device.serialNumber || deviceId}
                                                     </Text>
 
                                                 </View>
@@ -1917,5 +2206,12 @@ const styles = StyleSheet.create({
         fontSize: 11,
         textAlign: 'center',
         marginTop: 5,
+    },
+    selectedDeviceName: {
+        color: '#FFFFFF',
+    },
+
+    selectedDeviceCode: {
+        color: '#AAAAAA',
     },
 });

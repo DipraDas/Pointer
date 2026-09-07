@@ -53,7 +53,7 @@ export const authApi = baseApi.injectEndpoints({
 
     getAllDevices: builder.query({
       query: () => ({
-        url: "device",
+        url: "devices",
         method: "GET",
       }),
 
@@ -61,16 +61,43 @@ export const authApi = baseApi.injectEndpoints({
     }),
 
     addDeviceToUser: builder.mutation({
-      query: (deviceId) => ({
-        url: "user/add-device",
-        method: "POST",
-
+      query: ({ email, serialNumber }) => ({
+        url: 'users/add-device',
+        method: 'POST',
         body: {
-          deviceId,
+          email,
+          serialNumber,
         },
       }),
-
       invalidatesTags: ["User", "Device"],
+    }),
+    // =========================
+    // GET CURRENT USER
+    // =========================
+
+    getCurrentUser: builder.query({
+
+      query: () => ({
+        url: 'users/me',
+        method: 'GET',
+      }),
+
+      providesTags: ['User'],
+
+    }),
+
+
+    // =========================
+    // GET LATEST DEVICE DATA
+    // =========================
+
+    getLatestDeviceData: builder.query({
+
+      query: serialNumber => ({
+        url: `tracker/latest/${serialNumber}`,
+        method: 'GET',
+      }),
+
     }),
   }),
 });
@@ -84,4 +111,6 @@ export const {
   useSaveDeviceTokenMutation,
   useGetAllDevicesQuery,
   useAddDeviceToUserMutation,
+  useGetCurrentUserQuery,
+  useGetLatestDeviceDataQuery,
 } = authApi;

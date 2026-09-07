@@ -1,799 +1,1718 @@
 import React, {
+    useMemo,
     useRef,
-    useState,
 } from 'react';
 
 import {
-    StatusBar,
+    ActivityIndicator,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View,
 } from 'react-native';
 
 import { WebView } from 'react-native-webview';
 
-const DEMO_USERS = [
-    {
-        id: '1',
-        name: 'John Pyn',
-        relationship: 'Son',
-        initials: 'JP',
-        latitude: -33.7507,
-        longitude: 150.6877,
-        location: 'Penrith Station, NSW',
-        updatedAt: 'Updated just now',
-        status: 'Active',
-    },
-    {
-        id: '2',
-        name: 'Sarah Das',
-        relationship: 'Sister',
-        initials: 'SD',
-        latitude: -33.7519,
-        longitude: 150.6942,
-        location: 'Westfield Penrith, NSW',
-        updatedAt: 'Updated 2 minutes ago',
-        status: 'Active',
-    },
-    {
-        id: '3',
-        name: 'Michael Das',
-        relationship: 'Father',
-        initials: 'MD',
-        latitude: -33.7652,
-        longitude: 150.7194,
-        location: 'Kingswood, NSW',
-        updatedAt: 'Updated 5 minutes ago',
-        status: 'Active',
-    },
-];
+import {
+    useGetCurrentUserQuery,
+    useGetLatestDeviceDataQuery,
+} from '../../Redux/Features/Authentication/AuthApi';
 
-const createMapHtml = users => {
-    const usersJson = JSON.stringify(users);
+
+// ======================================================
+// CREATE MAP HTML
+// ======================================================
+
+const createMapHtml = ({
+    latitude,
+    longitude,
+    deviceName,
+    serialNumber,
+    gpsDate,
+    gpsTime,
+    emergency,
+}) => {
 
     return `
-    <!DOCTYPE html>
+        <!DOCTYPE html>
 
-    <html>
-      <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0,
-          maximum-scale=1.0, user-scalable=no"
-        />
+        <html>
 
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        />
+        <head>
 
-        <style>
-          html,
-          body,
-          #map {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            background: #eeeeee;
-          }
+            <meta
+                name="viewport"
+                content="
+                    width=device-width,
+                    initial-scale=1.0,
+                    maximum-scale=1.0,
+                    user-scalable=no
+                "
+            />
 
-          .leaflet-control-attribution {
-            font-size: 9px;
-            margin-bottom: 78px !important;
-          }
+            <link
+                rel="stylesheet"
+                href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+            />
 
-          .custom-marker-container {
-            background: transparent;
-            border: none;
-          }
+            <style>
 
-          .custom-marker {
-            width: 46px;
-            height: 46px;
+                html,
+                body,
+                #map {
+                    width: 100%;
+                    height: 100%;
+                    margin: 0;
+                    padding: 0;
+                    background: #eeeeee;
+                }
 
-            display: flex;
-            justify-content: center;
-            align-items: center;
 
-            background: #111111;
-            color: #ffffff;
+                /* =====================================
+                   ATTRIBUTION
+                ===================================== */
 
-            border: 4px solid #ffffff;
-            border-radius: 50%;
+                .leaflet-control-attribution {
+                    font-size: 8px;
+                    opacity: 0.7;
+                    margin-bottom: 75px !important;
+                }
 
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            font-weight: 700;
 
-            box-shadow: 0 4px 10px
-              rgba(0, 0, 0, 0.35);
-          }
+                /* =====================================
+                   ZOOM BUTTON
+                ===================================== */
 
-          .marker-pointer {
-            width: 0;
-            height: 0;
+                .leaflet-top {
+                    top: 110px !important;
+                }
 
-            margin-left: 15px;
-            margin-top: -2px;
+                .leaflet-right {
+                    right: 12px !important;
+                }
 
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-top: 11px solid #111111;
-          }
+                .leaflet-control-zoom {
+                    border: none !important;
 
-          .leaflet-popup-content-wrapper {
-            border-radius: 14px;
-          }
+                    border-radius: 12px !important;
 
-          .leaflet-popup-content {
-            min-width: 150px;
-            margin: 13px;
-            font-family: Arial, sans-serif;
-          }
+                    overflow: hidden;
 
-          .popup-name {
-            color: #111111;
-            font-size: 14px;
-            font-weight: 700;
-          }
+                    box-shadow:
+                        0 3px 12px
+                        rgba(0, 0, 0, 0.18) !important;
+                }
 
-          .popup-location {
-            color: #666666;
-            font-size: 11px;
-            margin-top: 5px;
-          }
+                .leaflet-control-zoom a {
+                    width: 38px !important;
+                    height: 38px !important;
 
-          .popup-status {
-            color: #32914d;
-            font-size: 10px;
-            font-weight: 700;
-            margin-top: 6px;
-          }
-        </style>
-      </head>
+                    line-height: 38px !important;
 
-      <body>
-        <div id="map"></div>
+                    font-size: 20px !important;
 
-        <script
-          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        ></script>
+                    color: #111111 !important;
 
-        <script>
-          const users = ${usersJson};
+                    background: #ffffff !important;
 
-          window.map = L.map(
-            'map',
-            {
-              zoomControl: false,
-              attributionControl: true
-            }
-          ).setView(
-            [-33.7507, 150.6877],
-            13
-          );
+                    border-color: #eeeeee !important;
+                }
 
-          L.tileLayer(
-            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            {
-              maxZoom: 19,
-              attribution:
-                '&copy; OpenStreetMap contributors'
-            }
-          ).addTo(window.map);
 
-          L.control
-            .zoom({
-              position: 'bottomright'
-            })
-            .addTo(window.map);
+                /* =====================================
+                   MARKER
+                ===================================== */
 
-          const markerGroup =
-            L.featureGroup().addTo(window.map);
+                .device-marker-container {
+                    background: transparent !important;
+                    border: none !important;
+                }
 
-          users.forEach(user => {
-            const markerIcon = L.divIcon({
-              className: 'custom-marker-container',
 
-              html:
-                '<div class="custom-marker">' +
-                user.initials +
-                '</div>' +
-                '<div class="marker-pointer"></div>',
+                .device-marker {
+                    width: 44px;
+                    height: 44px;
 
-              iconSize: [54, 62],
-              iconAnchor: [27, 60],
-              popupAnchor: [0, -58]
-            });
+                    display: flex;
 
-            const marker = L.marker(
-              [user.latitude, user.longitude],
-              {
-                icon: markerIcon
-              }
-            ).addTo(markerGroup);
+                    justify-content: center;
+                    align-items: center;
 
-            marker.bindPopup(
-              '<div class="popup-name">' +
-                user.name +
-                ' (' +
-                user.relationship +
-                ')' +
-              '</div>' +
+                    background: #111111;
 
-              '<div class="popup-location">' +
-                user.location +
-              '</div>' +
+                    border: 4px solid #ffffff;
 
-              '<div class="popup-status">' +
-                '● ' +
-                user.status +
-                ' • ' +
-                user.updatedAt +
-              '</div>'
-            );
+                    border-radius: 50%;
 
-            marker.on('click', () => {
-              window.ReactNativeWebView.postMessage(
-                JSON.stringify(user)
-              );
-            });
-          });
+                    box-shadow:
+                        0 6px 18px
+                        rgba(0, 0, 0, 0.30);
+                }
 
-          if (users.length > 1) {
-            window.map.fitBounds(
-              markerGroup.getBounds(),
-              {
-                padding: [60, 60]
-              }
-            );
-          }
-        </script>
-      </body>
-    </html>
-  `;
+
+                .device-marker-inner {
+                    width: 12px;
+                    height: 12px;
+
+                    background: ${emergency
+            ? '#FF3B30'
+            : '#00C875'
+        };
+
+                    border-radius: 50%;
+                }
+
+
+                .marker-pointer {
+                    width: 0;
+                    height: 0;
+
+                    margin-left: 14px;
+
+                    margin-top: -2px;
+
+                    border-left:
+                        8px solid transparent;
+
+                    border-right:
+                        8px solid transparent;
+
+                    border-top:
+                        10px solid #111111;
+                }
+
+
+                /* =====================================
+                   POPUP
+                ===================================== */
+
+                .leaflet-popup-content-wrapper {
+
+                    border-radius: 16px;
+
+                    box-shadow:
+                        0 5px 20px
+                        rgba(0, 0, 0, 0.18);
+
+                }
+
+
+                .leaflet-popup-content {
+
+                    min-width: 180px;
+
+                    margin: 14px;
+
+                    font-family:
+                        Arial,
+                        sans-serif;
+
+                }
+
+
+                .popup-name {
+
+                    color: #111111;
+
+                    font-size: 15px;
+
+                    font-weight: 700;
+
+                }
+
+
+                .popup-serial {
+
+                    color: #999999;
+
+                    font-size: 10px;
+
+                    margin-top: 4px;
+
+                }
+
+
+                .popup-location {
+
+                    color: #444444;
+
+                    font-size: 11px;
+
+                    line-height: 17px;
+
+                    margin-top: 9px;
+
+                }
+
+
+                .popup-time {
+
+                    color: #999999;
+
+                    font-size: 10px;
+
+                    margin-top: 7px;
+
+                }
+
+
+                .popup-status {
+
+                    color: ${emergency
+            ? '#D63031'
+            : '#00A864'
+        };
+
+                    font-size: 10px;
+
+                    font-weight: 700;
+
+                    margin-top: 7px;
+
+                }
+
+            </style>
+
+        </head>
+
+
+        <body>
+
+            <div id="map"></div>
+
+
+            <script
+                src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            ></script>
+
+
+            <script>
+
+                const latitude =
+                    ${Number(latitude)};
+
+                const longitude =
+                    ${Number(longitude)};
+
+
+                // =====================================
+                // CREATE MAP
+                // =====================================
+
+                window.map = L.map(
+                    'map',
+                    {
+                        zoomControl: false,
+
+                        attributionControl: true,
+
+                        doubleClickZoom: true,
+
+                        scrollWheelZoom: true,
+
+                        touchZoom: true,
+                    }
+                ).setView(
+                    [
+                        latitude,
+                        longitude
+                    ],
+
+                    17
+                );
+
+
+                // =====================================
+                // OPEN STREET MAP
+                // =====================================
+
+                L.tileLayer(
+
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+
+                    {
+
+                        maxZoom: 19,
+
+                        minZoom: 3,
+
+                        attribution:
+                            '&copy; OpenStreetMap contributors'
+
+                    }
+
+                ).addTo(window.map);
+
+
+                // =====================================
+                // ZOOM CONTROL
+                // =====================================
+
+                L.control
+                    .zoom({
+
+                        position:
+                            'topright'
+
+                    })
+                    .addTo(
+                        window.map
+                    );
+
+
+                // =====================================
+                // CUSTOM DEVICE MARKER
+                // =====================================
+
+                const markerIcon =
+                    L.divIcon({
+
+                        className:
+                            'device-marker-container',
+
+                        html:
+
+                            '<div class="device-marker">' +
+
+                                '<div class="device-marker-inner"></div>' +
+
+                            '</div>' +
+
+                            '<div class="marker-pointer"></div>',
+
+                        iconSize: [
+                            52,
+                            58
+                        ],
+
+                        iconAnchor: [
+                            26,
+                            56
+                        ],
+
+                        popupAnchor: [
+                            0,
+                            -54
+                        ]
+
+                    });
+
+
+                // =====================================
+                // DEVICE MARKER
+                // =====================================
+
+                window.deviceMarker =
+                    L.marker(
+
+                        [
+                            latitude,
+                            longitude
+                        ],
+
+                        {
+                            icon:
+                                markerIcon
+                        }
+
+                    )
+                    .addTo(
+                        window.map
+                    );
+
+
+                // =====================================
+                // POPUP
+                // Only opens when marker is pressed
+                // =====================================
+
+                window.deviceMarker.bindPopup(
+
+                    '<div class="popup-name">' +
+
+                        ${JSON.stringify(
+            deviceName ||
+            'GPS Tracker'
+        )} +
+
+                    '</div>' +
+
+
+                    '<div class="popup-serial">' +
+
+                        'Serial: ' +
+
+                        ${JSON.stringify(
+            serialNumber ||
+            ''
+        )} +
+
+                    '</div>' +
+
+
+                    '<div class="popup-location">' +
+
+                        'Latitude: ' +
+
+                        latitude.toFixed(6) +
+
+                        '<br>' +
+
+                        'Longitude: ' +
+
+                        longitude.toFixed(6) +
+
+                    '</div>' +
+
+
+                    '<div class="popup-time">' +
+
+                        'GPS: ' +
+
+                        ${JSON.stringify(
+            `${gpsDate || ''} ${gpsTime || ''}`
+        )} +
+
+                    '</div>' +
+
+
+                    '<div class="popup-status">' +
+
+                        ${emergency
+
+            ? JSON.stringify(
+                '⚠ EMERGENCY'
+            )
+
+            : JSON.stringify(
+                '● ACTIVE'
+            )
+        } +
+
+                    '</div>'
+
+                );
+
+
+                // IMPORTANT:
+                // We are NOT automatically opening the popup.
+                // User can tap the marker to open it.
+
+
+            </script>
+
+        </body>
+
+        </html>
+    `;
 };
+
+
+
+// ======================================================
+// MAP SCREEN
+// ======================================================
 
 const MapScreen = () => {
-    const webViewRef = useRef(null);
 
-    const [selectedUser, setSelectedUser] =
-        useState(DEMO_USERS[0]);
+    const webViewRef =
+        useRef(null);
 
-    const mapHtml = createMapHtml(DEMO_USERS);
 
-    const handleMapMessage = event => {
-        try {
-            const user = JSON.parse(
-                event.nativeEvent.data,
-            );
+    // ==================================================
+    // GET LOGGED-IN USER FROM REDUX API
+    // ==================================================
 
-            setSelectedUser(user);
-        } catch (error) {
-            console.log(
-                'Map message error:',
-                error,
-            );
-        }
-    };
+    const {
 
-    const centreSelectedUser = () => {
-        if (!selectedUser) {
-            return;
-        }
+        data: userResponse,
 
-        webViewRef.current?.injectJavaScript(`
-      window.map.setView(
-        [
-          ${selectedUser.latitude},
-          ${selectedUser.longitude}
-        ],
-        16,
+        isLoading: isUserLoading,
+
+        error: userError,
+
+    } = useGetCurrentUserQuery();
+
+
+    const user =
+        userResponse?.data ||
+        null;
+
+
+    // ==================================================
+    // CONNECTED DEVICE
+    // ==================================================
+
+    const device =
+        user?.devices?.[0] ||
+        null;
+
+
+    const deviceName =
+        device?.deviceName ||
+        'GPS Tracker';
+
+
+    const serialNumber =
+        device?.serialNumber ||
+        null;
+
+
+    // ==================================================
+    // GET LATEST TRACKER DATA
+    // ==================================================
+
+    const {
+
+        data: trackerResponse,
+
+        isLoading: isTrackerLoading,
+
+        error: trackerError,
+
+    } = useGetLatestDeviceDataQuery(
+
+        serialNumber,
+
         {
-          animate: true
+
+            skip:
+                !serialNumber,
+
+            pollingInterval:
+                5000,
+
         }
-      );
 
-      true;
-    `);
-    };
+    );
 
-    const showAllUsers = () => {
-        webViewRef.current?.injectJavaScript(`
-      const coordinates = ${JSON.stringify(
-            DEMO_USERS.map(user => [
-                user.latitude,
-                user.longitude,
-            ]),
-        )};
 
-      window.map.fitBounds(
-        coordinates,
-        {
-          padding: [60, 60]
-        }
-      );
+    const tracker =
+        trackerResponse?.data ||
+        null;
 
-      true;
-    `);
-    };
+    const lastUpdatedTime = tracker?.updatedAt
+        ? new Date(tracker.updatedAt).getTime()
+        : 0;
+
+    const currentTime = Date.now();
+
+    const differenceInSeconds =
+        (currentTime - lastUpdatedTime) / 1000;
+
+    const isOnline =
+        differenceInSeconds >= 0 &&
+        differenceInSeconds <= 5;
+
+    // ==================================================
+    // LATITUDE
+    // ==================================================
+
+    const latitude =
+        Number(
+            tracker?.latitude
+        );
+
+
+    // ==================================================
+    // LONGITUDE
+    // ==================================================
+
+    const longitude =
+        Number(
+            tracker?.longitude
+        );
+
+
+    // ==================================================
+    // CHECK LOCATION
+    // ==================================================
+
+    const hasLocation =
+
+        Number.isFinite(
+            latitude
+        )
+
+        &&
+
+        Number.isFinite(
+            longitude
+        );
+
+
+    // ==================================================
+    // DEVICE FIRST LETTER
+    // ==================================================
+
+    const deviceLetter =
+
+        deviceName
+            ?.trim()
+            ?.charAt(0)
+            ?.toUpperCase()
+
+        ||
+
+        'G';
+
+
+    // ==================================================
+    // CREATE MAP
+    // ==================================================
+
+    const mapHtml =
+        useMemo(() => {
+
+            if (!hasLocation) {
+
+                return '';
+
+            }
+
+
+            return createMapHtml({
+
+                latitude,
+
+                longitude,
+
+                deviceName,
+
+                serialNumber,
+
+                gpsDate:
+                    tracker?.gpsDate,
+
+                gpsTime:
+                    tracker?.gpsTime,
+
+                emergency:
+                    tracker?.emergency,
+
+            });
+
+        }, [
+
+            hasLocation,
+
+            latitude,
+
+            longitude,
+
+            deviceName,
+
+            serialNumber,
+
+            tracker?.gpsDate,
+
+            tracker?.gpsTime,
+
+            tracker?.emergency,
+
+        ]);
+
+
+    // ==================================================
+    // USER LOADING
+    // ==================================================
+
+    if (isUserLoading) {
+
+        return (
+
+            <View style={styles.center}>
+
+                <ActivityIndicator
+                    size="large"
+                    color="#111111"
+                />
+
+                <Text
+                    style={
+                        styles.loadingText
+                    }
+                >
+                    Loading device...
+                </Text>
+
+            </View>
+
+        );
+
+    }
+
+
+    // ==================================================
+    // USER ERROR
+    // ==================================================
+
+    if (userError) {
+
+        return (
+
+            <View style={styles.center}>
+
+                <Text style={styles.errorTitle}>
+                    Unable to load device
+                </Text>
+
+                <Text style={styles.errorText}>
+                    Failed to get user information.
+                </Text>
+
+            </View>
+
+        );
+
+    }
+
+
+    // ==================================================
+    // NO DEVICE
+    // ==================================================
+
+    if (!device) {
+
+        return (
+
+            <View style={styles.center}>
+
+                <Text style={styles.errorTitle}>
+                    No Device
+                </Text>
+
+                <Text style={styles.errorText}>
+                    No connected device found.
+                </Text>
+
+            </View>
+
+        );
+
+    }
+
+
+    // ==================================================
+    // TRACKER LOADING
+    // ==================================================
+
+    if (isTrackerLoading) {
+
+        return (
+
+            <View style={styles.center}>
+
+                <ActivityIndicator
+                    size="large"
+                    color="#111111"
+                />
+
+                <Text style={styles.loadingText}>
+                    Loading live location...
+                </Text>
+
+            </View>
+
+        );
+
+    }
+
+
+    // ==================================================
+    // TRACKER ERROR
+    // ==================================================
+
+    if (trackerError) {
+
+        return (
+
+            <View style={styles.center}>
+
+                <Text style={styles.errorTitle}>
+                    Location unavailable
+                </Text>
+
+                <Text style={styles.errorText}>
+                    Failed to get the latest GPS location.
+                </Text>
+
+            </View>
+
+        );
+
+    }
+
+
+    // ==================================================
+    // NO GPS
+    // ==================================================
+
+    if (!hasLocation) {
+
+        return (
+
+            <View style={styles.center}>
+
+                <Text style={styles.errorTitle}>
+                    No GPS Data
+                </Text>
+
+                <Text style={styles.errorText}>
+                    Waiting for device location.
+                </Text>
+
+            </View>
+
+        );
+
+    }
+
+
+    // ==================================================
+    // SCREEN
+    // ==================================================
 
     return (
+
         <View style={styles.container}>
-            <StatusBar
-                backgroundColor="#FFFFFF"
-                barStyle="dark-content"
-            />
+
+
+            {/* ===================================== */}
+            {/* MAP */}
+            {/* ===================================== */}
 
             <WebView
+
                 ref={webViewRef}
-                source={{ html: mapHtml }}
+
+                source={{
+                    html: mapHtml,
+                }}
+
                 style={styles.map}
-                originWhitelist={['*']}
-                javaScriptEnabled
-                domStorageEnabled
-                onMessage={handleMapMessage}
+
+                originWhitelist={[
+                    '*'
+                ]}
+
+                javaScriptEnabled={true}
+
+                domStorageEnabled={true}
+
                 mixedContentMode="always"
-                startInLoadingState
+
+                showsVerticalScrollIndicator={false}
+
+                showsHorizontalScrollIndicator={false}
+
+                overScrollMode="never"
+
             />
 
-            {/* Header */}
+            {/* ===================================== */}
+            {/* BOTTOM DEVICE CARD */}
+            {/* ===================================== */}
 
-            <View style={styles.header}>
-                <View>
-                    <Text style={styles.headerTitle}>
-                        LIVE MAP
-                    </Text>
+            <View style={styles.locationCard}>
 
-                    <Text style={styles.headerSubtitle}>
-                        Family location updates
-                    </Text>
-                </View>
 
-                <View style={styles.liveBadge}>
-                    <View style={styles.liveDot} />
+                {/* ================================= */}
+                {/* DEVICE DETAILS */}
+                {/* ================================= */}
 
-                    <Text style={styles.liveText}>
-                        LIVE
-                    </Text>
-                </View>
-            </View>
+                <View style={styles.deviceRow}>
 
-            {/* Online counter */}
 
-            <View style={styles.onlineCounter}>
-                <View style={styles.onlineCounterDot} />
+                    <View style={styles.deviceIcon}>
 
-                <Text style={styles.onlineCounterText}>
-                    {DEMO_USERS.length} people online
-                </Text>
-            </View>
 
-            {/* Show all button */}
+                        <Text style={styles.deviceLetter}>
 
-            <TouchableOpacity
-                style={styles.showAllButton}
-                onPress={showAllUsers}
-                activeOpacity={0.75}
-            >
-                <Text style={styles.showAllIcon}>⌖</Text>
-            </TouchableOpacity>
+                            {deviceLetter}
 
-            {/* Selected user card */}
-
-            {selectedUser && (
-                <View style={styles.userCard}>
-                    <View style={styles.cardHandle} />
-
-                    <View style={styles.userHeader}>
-                        <View style={styles.userAvatar}>
-                            <Text style={styles.userAvatarText}>
-                                {selectedUser.initials}
-                            </Text>
-                        </View>
-
-                        <View style={styles.userDetails}>
-                            <View style={styles.userNameRow}>
-                                <Text style={styles.userName}>
-                                    {selectedUser.name}
-                                </Text>
-
-                                <Text style={styles.relationship}>
-                                    {' '}
-                                    ({selectedUser.relationship})
-                                </Text>
-                            </View>
-
-                            <View style={styles.statusRow}>
-                                <View style={styles.activeDot} />
-
-                                <Text style={styles.activeText}>
-                                    {selectedUser.status}
-                                </Text>
-
-                                <Text style={styles.statusDivider}>
-                                    •
-                                </Text>
-
-                                <Text style={styles.updatedText}>
-                                    {selectedUser.updatedAt}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <TouchableOpacity
-                            style={styles.closeButton}
-                            onPress={() => setSelectedUser(null)}
-                        >
-                            <Text style={styles.closeButtonText}>
-                                ×
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.locationContainer}>
-                        <View style={styles.locationIcon}>
-                            <Text style={styles.locationIconText}>
-                                ●
-                            </Text>
-                        </View>
-
-                        <View style={styles.locationDetails}>
-                            <Text style={styles.locationLabel}>
-                                CURRENT LOCATION
-                            </Text>
-
-                            <Text
-                                style={styles.locationText}
-                                numberOfLines={1}
-                            >
-                                {selectedUser.location}
-                            </Text>
-                        </View>
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.centreButton}
-                        onPress={centreSelectedUser}
-                        activeOpacity={0.75}
-                    >
-                        <Text style={styles.centreButtonText}>
-                            CENTRE ON MAP
                         </Text>
-                    </TouchableOpacity>
+
+
+                    </View>
+
+
+                    <View style={styles.deviceInfo}>
+
+
+                        <Text style={styles.deviceLabel}>
+
+                            TRACKING DEVICE
+
+                        </Text>
+
+
+                        <Text
+                            style={styles.cardDeviceName}
+                            numberOfLines={1}
+                        >
+
+                            {deviceName}
+
+                        </Text>
+
+
+                        <Text style={styles.cardSerial}>
+
+                            {serialNumber}
+
+                        </Text>
+
+
+                    </View>
+
+
+                    {/* STATUS */}
+
+                    <View style={styles.cardStatus}>
+
+
+                        <View
+                            style={
+                                isOnline
+                                    ? styles.cardLiveDot
+                                    : styles.cardOfflineDot
+                            }
+                        />
+
+                        <Text
+                            style={
+                                isOnline
+                                    ? styles.cardLiveText
+                                    : styles.cardOfflineText
+                            }
+                        >
+                            {isOnline ? 'ONLINE' : 'OFFLINE'}
+                        </Text>
+
+
+                    </View>
+
+
                 </View>
-            )}
+
+
+                {/* ================================= */}
+                {/* DIVIDER */}
+                {/* ================================= */}
+
+                <View style={styles.divider} />
+
+
+                {/* ================================= */}
+                {/* COORDINATES */}
+                {/* ================================= */}
+
+                <View style={styles.coordinatesRow}>
+
+
+                    {/* LATITUDE */}
+
+                    <View style={styles.coordinateBox}>
+
+
+                        <Text style={styles.coordinateLabel}>
+
+                            LATITUDE
+
+                        </Text>
+
+
+                        <Text style={styles.coordinateValue}>
+
+                            {latitude.toFixed(6)}
+
+                        </Text>
+
+
+                    </View>
+
+
+                    <View style={styles.verticalDivider} />
+
+
+                    {/* LONGITUDE */}
+
+                    <View style={styles.coordinateBox}>
+
+
+                        <Text style={styles.coordinateLabel}>
+
+                            LONGITUDE
+
+                        </Text>
+
+
+                        <Text style={styles.coordinateValue}>
+
+                            {longitude.toFixed(6)}
+
+                        </Text>
+
+
+                    </View>
+
+
+                </View>
+
+
+                {/* ================================= */}
+                {/* GPS UPDATE */}
+                {/* ================================= */}
+
+                <View style={styles.updateRow}>
+
+
+                    <View
+
+                        style={
+
+                            tracker?.emergency
+
+                                ? styles.updateEmergencyDot
+
+                                : styles.updateLiveDot
+
+                        }
+
+                    />
+
+
+                    <Text style={styles.updatedText}>
+
+                        GPS updated{' '}
+
+                        {tracker?.gpsDate}{' '}
+
+                        {tracker?.gpsTime}
+
+                    </Text>
+
+
+                </View>
+
+
+            </View>
+
+
         </View>
+
     );
+
 };
+
 
 export default MapScreen;
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
 
-    map: {
-        flex: 1,
-        backgroundColor: '#EEEEEE',
-    },
+// ======================================================
+// STYLES
+// ======================================================
 
-    header: {
-        position: 'absolute',
-        top: 20,
-        left: 18,
-        right: 18,
+const styles =
+    StyleSheet.create({
 
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
 
-        backgroundColor: '#FFFFFF',
-        borderRadius: 18,
-        paddingHorizontal: 17,
-        paddingVertical: 14,
+        // ==========================================
+        // MAIN
+        // ==========================================
 
-        elevation: 8,
+        container: {
 
-        shadowColor: '#000000',
-        shadowOffset: {
-            width: 0,
-            height: 3,
+            flex: 1,
+
+            backgroundColor: '#FFFFFF',
+
         },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-    },
 
-    headerTitle: {
-        color: '#000000',
-        fontSize: 20,
-        fontFamily: 'Quantico-Bold',
-        letterSpacing: 4,
-    },
 
-    headerSubtitle: {
-        color: '#888888',
-        fontSize: 12,
-        marginTop: 2,
-    },
+        map: {
 
-    liveBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#111111',
-        borderRadius: 15,
-        paddingHorizontal: 11,
-        paddingVertical: 7,
-    },
+            flex: 1,
 
-    liveDot: {
-        width: 7,
-        height: 7,
-        backgroundColor: '#4ECB71',
-        borderRadius: 4,
-        marginRight: 6,
-    },
+            backgroundColor: '#EEEEEE',
 
-    liveText: {
-        color: '#FFFFFF',
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 1,
-    },
-
-    onlineCounter: {
-        position: 'absolute',
-        top: 112,
-        left: 18,
-
-        flexDirection: 'row',
-        alignItems: 'center',
-
-        backgroundColor: '#FFFFFF',
-        borderRadius: 15,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-
-        elevation: 6,
-
-        shadowColor: '#000000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
         },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-    },
 
-    onlineCounterDot: {
-        width: 7,
-        height: 7,
-        backgroundColor: '#4ECB71',
-        borderRadius: 4,
-        marginRight: 7,
-    },
 
-    onlineCounterText: {
-        color: '#222222',
-        fontSize: 11,
-        fontWeight: '700',
-    },
+        center: {
 
-    showAllButton: {
-        position: 'absolute',
-        right: 18,
-        bottom: 250,
+            flex: 1,
 
-        width: 48,
-        height: 48,
+            justifyContent: 'center',
 
-        justifyContent: 'center',
-        alignItems: 'center',
+            alignItems: 'center',
 
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
+            backgroundColor: '#FFFFFF',
 
-        elevation: 8,
+            paddingHorizontal: 30,
 
-        shadowColor: '#000000',
-        shadowOffset: {
-            width: 0,
-            height: 3,
         },
-        shadowOpacity: 0.18,
-        shadowRadius: 6,
-    },
 
-    showAllIcon: {
-        color: '#000000',
-        fontSize: 26,
-        fontWeight: '700',
-    },
 
-    userCard: {
-        position: 'absolute',
-        left: 18,
-        right: 18,
-        bottom: 95,
+        loadingText: {
 
-        backgroundColor: '#FFFFFF',
-        borderRadius: 21,
-        padding: 17,
+            color: '#777777',
 
-        elevation: 12,
+            fontSize: 14,
 
-        shadowColor: '#000000',
-        shadowOffset: {
-            width: 0,
-            height: 5,
+            marginTop: 12,
+
         },
-        shadowOpacity: 0.22,
-        shadowRadius: 10,
-    },
 
-    cardHandle: {
-        width: 34,
-        height: 4,
-        alignSelf: 'center',
-        backgroundColor: '#DDDDDD',
-        borderRadius: 2,
-        marginBottom: 14,
-    },
 
-    userHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
+        errorTitle: {
 
-    userAvatar: {
-        width: 48,
-        height: 48,
+            color: '#111111',
 
-        justifyContent: 'center',
-        alignItems: 'center',
+            fontSize: 20,
 
-        backgroundColor: '#111111',
-        borderRadius: 24,
-    },
+            fontWeight: '800',
 
-    userAvatarText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '700',
-    },
+        },
 
-    userDetails: {
-        flex: 1,
-        marginLeft: 12,
-    },
 
-    userNameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
+        errorText: {
 
-    userName: {
-        color: '#000000',
-        fontSize: 17,
-        fontWeight: '700',
-    },
+            color: '#888888',
 
-    relationship: {
-        color: '#888888',
-        fontSize: 12,
-    },
+            fontSize: 13,
 
-    statusRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 5,
-    },
+            marginTop: 7,
 
-    activeDot: {
-        width: 7,
-        height: 7,
-        backgroundColor: '#4ECB71',
-        borderRadius: 4,
-        marginRight: 5,
-    },
+            textAlign: 'center',
 
-    activeText: {
-        color: '#399150',
-        fontSize: 11,
-        fontWeight: '700',
-    },
+        },
 
-    statusDivider: {
-        color: '#BBBBBB',
-        fontSize: 11,
-        marginHorizontal: 6,
-    },
 
-    updatedText: {
-        color: '#999999',
-        fontSize: 10,
-    },
+        // ==========================================
+        // TOP HEADER
+        // ==========================================
 
-    closeButton: {
-        width: 32,
-        height: 32,
+        header: {
 
-        justifyContent: 'center',
-        alignItems: 'center',
+            position: 'absolute',
 
-        backgroundColor: '#F0F0F0',
-        borderRadius: 16,
-    },
+            top: 20,
 
-    closeButtonText: {
-        color: '#555555',
-        fontSize: 22,
-        lineHeight: 24,
-    },
+            left: 18,
 
-    locationContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+            right: 18,
 
-        backgroundColor: '#F5F5F5',
-        borderRadius: 13,
+            minHeight: 78,
 
-        marginTop: 15,
-        padding: 12,
-    },
+            flexDirection: 'row',
 
-    locationIcon: {
-        width: 34,
-        height: 34,
+            justifyContent: 'space-between',
 
-        justifyContent: 'center',
-        alignItems: 'center',
+            alignItems: 'center',
 
-        backgroundColor: '#E4E4E4',
-        borderRadius: 17,
-    },
+            backgroundColor: '#FFFFFF',
 
-    locationIconText: {
-        color: '#111111',
-        fontSize: 11,
-    },
+            borderRadius: 22,
 
-    locationDetails: {
-        flex: 1,
-        marginLeft: 10,
-    },
+            paddingHorizontal: 18,
 
-    locationLabel: {
-        color: '#999999',
-        fontSize: 9,
-        fontWeight: '700',
-        letterSpacing: 1,
-    },
+            paddingVertical: 14,
 
-    locationText: {
-        color: '#222222',
-        fontSize: 13,
-        fontWeight: '600',
-        marginTop: 3,
-    },
+            elevation: 10,
 
-    centreButton: {
-        width: '100%',
-        backgroundColor: '#111111',
-        borderRadius: 12,
-        marginTop: 13,
-        paddingVertical: 13,
-    },
+            shadowColor: '#000000',
 
-    centreButtonText: {
-        color: '#FFFFFF',
-        textAlign: 'center',
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 1.5,
-    },
-});
+            shadowOffset: {
+
+                width: 0,
+
+                height: 4,
+
+            },
+
+            shadowOpacity: 0.14,
+
+            shadowRadius: 10,
+
+        },
+
+
+        headerLeft: {
+
+            flex: 1,
+
+            marginRight: 12,
+
+        },
+
+
+        deviceName: {
+
+            color: '#111111',
+
+            fontSize: 20,
+
+            fontWeight: '800',
+
+        },
+
+
+        serialNumber: {
+
+            color: '#999999',
+
+            fontSize: 11,
+
+            marginTop: 4,
+
+            letterSpacing: 0.3,
+
+        },
+
+
+        // ==========================================
+        // LIVE BADGE
+        // ==========================================
+
+        liveBadge: {
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+            backgroundColor: '#111111',
+
+            borderRadius: 20,
+
+            paddingHorizontal: 13,
+
+            paddingVertical: 9,
+
+        },
+
+
+        sosBadge: {
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+            backgroundColor: '#D63031',
+
+            borderRadius: 20,
+
+            paddingHorizontal: 13,
+
+            paddingVertical: 9,
+
+        },
+
+
+        liveDot: {
+
+            width: 8,
+
+            height: 8,
+
+            backgroundColor: '#00C875',
+
+            borderRadius: 4,
+
+            marginRight: 7,
+
+        },
+
+
+        emergencyDot: {
+
+            width: 8,
+
+            height: 8,
+
+            backgroundColor: '#FFFFFF',
+
+            borderRadius: 4,
+
+            marginRight: 7,
+
+        },
+
+
+        liveText: {
+
+            color: '#FFFFFF',
+
+            fontSize: 11,
+
+            fontWeight: '800',
+
+            letterSpacing: 1,
+
+        },
+
+
+        // ==========================================
+        // BOTTOM CARD
+        // ==========================================
+
+        locationCard: {
+
+            position: 'absolute',
+
+            left: 18,
+
+            right: 18,
+
+            bottom: 92,
+
+            backgroundColor: '#FFFFFF',
+
+            borderRadius: 24,
+
+            paddingHorizontal: 18,
+
+            paddingVertical: 17,
+
+            elevation: 12,
+
+            shadowColor: '#000000',
+
+            shadowOffset: {
+
+                width: 0,
+
+                height: 5,
+
+            },
+
+            shadowOpacity: 0.16,
+
+            shadowRadius: 12,
+
+        },
+
+
+        // ==========================================
+        // DEVICE ROW
+        // ==========================================
+
+        deviceRow: {
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+        },
+
+
+        deviceIcon: {
+
+            width: 50,
+
+            height: 50,
+
+            borderRadius: 25,
+
+            backgroundColor: '#111111',
+
+            justifyContent: 'center',
+
+            alignItems: 'center',
+
+            marginRight: 13,
+
+        },
+
+
+        deviceLetter: {
+
+            color: '#FFFFFF',
+
+            fontSize: 21,
+
+            fontWeight: '900',
+
+        },
+
+
+        deviceInfo: {
+
+            flex: 1,
+
+        },
+
+
+        deviceLabel: {
+
+            color: '#AAAAAA',
+
+            fontSize: 8,
+
+            fontWeight: '800',
+
+            letterSpacing: 1.5,
+
+        },
+
+
+        cardDeviceName: {
+
+            color: '#111111',
+
+            fontSize: 18,
+
+            fontWeight: '800',
+
+            marginTop: 3,
+
+        },
+
+
+        cardSerial: {
+
+            color: '#999999',
+
+            fontSize: 10,
+
+            marginTop: 3,
+
+        },
+
+
+        // ==========================================
+        // CARD STATUS
+        // ==========================================
+
+        cardStatus: {
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+            marginLeft: 8,
+
+        },
+
+
+        cardLiveDot: {
+
+            width: 6,
+
+            height: 6,
+
+            borderRadius: 3,
+
+            backgroundColor: '#00C875',
+
+            marginRight: 5,
+
+        },
+
+
+        cardEmergencyDot: {
+
+            width: 6,
+
+            height: 6,
+
+            borderRadius: 3,
+
+            backgroundColor: '#D63031',
+
+            marginRight: 5,
+
+        },
+
+
+        cardLiveText: {
+
+            color: '#00A864',
+
+            fontSize: 8,
+
+            fontWeight: '800',
+
+            letterSpacing: 0.5,
+
+        },
+
+
+        cardEmergencyText: {
+
+            color: '#D63031',
+
+            fontSize: 8,
+
+            fontWeight: '800',
+
+            letterSpacing: 0.5,
+
+        },
+
+
+        // ==========================================
+        // DIVIDER
+        // ==========================================
+
+        divider: {
+
+            height: 1,
+
+            backgroundColor: '#EEEEEE',
+
+            marginVertical: 15,
+
+        },
+
+
+        // ==========================================
+        // COORDINATES
+        // ==========================================
+
+        coordinatesRow: {
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+        },
+
+
+        coordinateBox: {
+
+            flex: 1,
+
+        },
+
+
+        verticalDivider: {
+
+            width: 1,
+
+            height: 43,
+
+            backgroundColor: '#EEEEEE',
+
+            marginHorizontal: 16,
+
+        },
+
+
+        coordinateLabel: {
+
+            color: '#AAAAAA',
+
+            fontSize: 8,
+
+            fontWeight: '800',
+
+            letterSpacing: 1,
+
+        },
+
+
+        coordinateValue: {
+
+            color: '#111111',
+
+            fontSize: 16,
+
+            fontWeight: '800',
+
+            marginTop: 5,
+
+        },
+
+
+        // ==========================================
+        // UPDATE
+        // ==========================================
+
+        updateRow: {
+
+            flexDirection: 'row',
+
+            alignItems: 'center',
+
+            marginTop: 15,
+
+            paddingTop: 12,
+
+            borderTopWidth: 1,
+
+            borderTopColor: '#EEEEEE',
+
+        },
+
+
+        updateLiveDot: {
+
+            width: 7,
+
+            height: 7,
+
+            borderRadius: 4,
+
+            backgroundColor: '#00C875',
+
+            marginRight: 7,
+
+        },
+
+
+        updateEmergencyDot: {
+
+            width: 7,
+
+            height: 7,
+
+            borderRadius: 4,
+
+            backgroundColor: '#D63031',
+
+            marginRight: 7,
+
+        },
+
+
+        updatedText: {
+
+            flex: 1,
+
+            color: '#777777',
+
+            fontSize: 10,
+
+        },
+        cardLiveDot: {
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: '#00C875',
+            marginRight: 5,
+        },
+
+        cardLiveText: {
+            color: '#00A864',
+            fontSize: 8,
+            fontWeight: '800',
+            letterSpacing: 0.5,
+        },
+
+        cardOfflineDot: {
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: '#FF3B30',
+            marginRight: 5,
+        },
+
+        cardOfflineText: {
+            color: '#FF3B30',
+            fontSize: 8,
+            fontWeight: '800',
+            letterSpacing: 0.5,
+        },
+
+    });
