@@ -1,4 +1,5 @@
 import React, {
+    useEffect,
     useMemo,
     useRef,
 } from 'react';
@@ -598,10 +599,9 @@ const MapScreen = () => {
 
     const differenceInSeconds =
         (currentTime - lastUpdatedTime) / 1000;
-
     const isOnline =
         differenceInSeconds >= 0 &&
-        differenceInSeconds <= 5;
+        differenceInSeconds <= 10;
 
     // ==================================================
     // LATITUDE
@@ -659,58 +659,86 @@ const MapScreen = () => {
     // ==================================================
     // CREATE MAP
     // ==================================================
+const initialLocationRef = useRef(null);
 
-    const mapHtml =
-        useMemo(() => {
+if (
+    !initialLocationRef.current &&
+    hasLocation
+) {
+    initialLocationRef.current = {
+        latitude,
+        longitude,
+    };
+}
 
-            if (!hasLocation) {
+const mapHtml = useMemo(() => {
 
-                return '';
+    if (!initialLocationRef.current) {
+        return '';
+    }
 
-            }
+    return createMapHtml({
+        latitude:
+            initialLocationRef.current.latitude,
 
+        longitude:
+            initialLocationRef.current.longitude,
 
-            return createMapHtml({
+        deviceName,
 
-                latitude,
+        serialNumber,
 
-                longitude,
-
-                deviceName,
-
-                serialNumber,
-
-                gpsDate:
-                    tracker?.gpsDate,
-
-                gpsTime:
-                    tracker?.gpsTime,
-
-                emergency:
-                    tracker?.emergency,
-
-            });
-
-        }, [
-
-            hasLocation,
-
-            latitude,
-
-            longitude,
-
-            deviceName,
-
-            serialNumber,
-
+        gpsDate:
             tracker?.gpsDate,
 
+        gpsTime:
             tracker?.gpsTime,
 
+        emergency:
             tracker?.emergency,
+    });
 
-        ]);
+}, [serialNumber]);
 
+useEffect(() => {
+
+    if (
+        !hasLocation ||
+        !webViewRef.current
+    ) {
+        return;
+    }
+
+    const script = `
+        if (
+            window.deviceMarker &&
+            window.map
+        ) {
+
+            const newLat =
+                ${Number(latitude)};
+
+            const newLng =
+                ${Number(longitude)};
+
+            window.deviceMarker.setLatLng([
+                newLat,
+                newLng
+            ]);
+
+        }
+
+        true;
+    `;
+
+    webViewRef.current.injectJavaScript(
+        script
+    );
+
+}, [
+    latitude,
+    longitude,
+]);
 
     // ==================================================
     // USER LOADING
@@ -847,25 +875,119 @@ const MapScreen = () => {
     // NO GPS
     // ==================================================
 
-    if (!hasLocation) {
+   useEffect(() => {
 
-        return (
+    if (
+        !hasLocation ||
+        !webViewRef.current
+    ) {
+        return;
+    }
 
-            <View style={styles.center}>
-
-                <Text style={styles.errorTitle}>
-                    No GPS Data
-                </Text>
-
-                <Text style={styles.errorText}>
-                    Waiting for device location.
-                </Text>
-
-            </View>
-
+    const safeDeviceName =
+        JSON.stringify(
+            deviceName || 'GPS Tracker'
         );
 
-    }
+    const safeSerial =
+        JSON.stringify(
+            serialNumber || ''
+        );
+
+    const safeGpsDate =
+        JSON.stringify(
+            tracker?.gpsDate || ''
+        );
+
+    const safeGpsTime =
+        JSON.stringify(
+            tracker?.gpsTime || ''
+        );
+
+    const emergency =
+        Boolean(
+            tracker?.emergency
+        );
+
+    const script = `
+
+        if (
+            window.deviceMarker &&
+            window.map
+        ) {
+
+            const newLat =
+                ${Number(latitude)};
+
+            const newLng =
+                ${Number(longitude)};
+
+            window.deviceMarker.setLatLng([
+                newLat,
+                newLng
+            ]);
+
+
+            const popupContent =
+                '<div class="popup-name">' +
+                    ${safeDeviceName} +
+                '</div>' +
+
+                '<div class="popup-serial">' +
+                    'Serial: ' +
+                    ${safeSerial} +
+                '</div>' +
+
+                '<div class="popup-location">' +
+                    'Latitude: ' +
+                    newLat.toFixed(6) +
+                    '<br>' +
+                    'Longitude: ' +
+                    newLng.toFixed(6) +
+                '</div>' +
+
+                '<div class="popup-time">' +
+                    'GPS: ' +
+                    ${safeGpsDate} +
+                    ' ' +
+                    ${safeGpsTime} +
+                '</div>' +
+
+                '<div class="popup-status">' +
+                    ${
+                        emergency
+                            ? JSON.stringify(
+                                '⚠ EMERGENCY'
+                            )
+                            : JSON.stringify(
+                                '● ACTIVE'
+                            )
+                    } +
+                '</div>';
+
+
+            window.deviceMarker
+                .setPopupContent(
+                    popupContent
+                );
+        }
+
+        true;
+    `;
+
+    webViewRef.current.injectJavaScript(
+        script
+    );
+
+}, [
+    latitude,
+    longitude,
+    tracker?.gpsDate,
+    tracker?.gpsTime,
+    tracker?.emergency,
+    deviceName,
+    serialNumber,
+]);
 
 
     // ==================================================

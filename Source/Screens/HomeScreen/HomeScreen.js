@@ -20,6 +20,7 @@ import {
     useGetAllDevicesQuery,
     useAddDeviceToUserMutation,
     useGetCurrentUserQuery,
+    useGetLatestDeviceDataQuery
 } from '../../Redux/Features/Authentication/AuthApi';
 
 
@@ -36,6 +37,36 @@ const HomeScreen = () => {
         reduxUser || null
     );
 
+    const [emergencies, setEmergencies] = useState([]);
+    const [emergencyLoading, setEmergencyLoading] = useState(true);
+
+    const fetchEmergencies = async () => {
+        try {
+            setEmergencyLoading(true);
+
+            const response = await fetch(
+                "http://192.168.20.30:5001/api/tracker/emergencies/latest"
+            );
+
+            const result = await response.json();
+
+            if (result.success) {
+                setEmergencies(result.data || []);
+            } else {
+                setEmergencies([]);
+            }
+        } catch (error) {
+            console.log("Emergency fetch error:", error);
+            setEmergencies([]);
+        } finally {
+            setEmergencyLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchEmergencies();
+    }, []);
+
     // IMPORTANT:
     // This will contain FULL DEVICE OBJECTS,
     // not only MongoDB ObjectIds.
@@ -50,6 +81,47 @@ const HomeScreen = () => {
 
     const myDevices =
         currentUser?.devices || [];
+
+    // ============================================
+    // DEVICE ONLINE / OFFLINE
+    // Same logic as MapScreen
+    // ============================================
+
+    const primaryDevice =
+        myDevices?.[0] || null;
+
+    const primarySerialNumber =
+        primaryDevice?.serialNumber || null;
+
+    const {
+        data: latestTrackerResponse,
+    } = useGetLatestDeviceDataQuery(
+        primarySerialNumber,
+        {
+            skip: !primarySerialNumber,
+            pollingInterval: 5000,
+        }
+    );
+
+    const latestTracker =
+        latestTrackerResponse?.data || null;
+
+    const lastUpdatedTime =
+        latestTracker?.updatedAt
+            ? new Date(latestTracker.updatedAt).getTime()
+            : 0;
+
+    const currentTime = Date.now();
+
+    const differenceInSeconds =
+        (currentTime - lastUpdatedTime) / 1000;
+
+    const isDeviceOnline =
+        differenceInSeconds >= 0 &&
+        differenceInSeconds <= 10;
+
+    const onlineDeviceCount =
+        isDeviceOnline ? 1 : 0;
 
     const [isLoading, setIsLoading] = useState(true);
 
@@ -592,11 +664,31 @@ const HomeScreen = () => {
                             </Text>
                         </View>
 
-                        <View style={styles.onlineBadge}>
-                            <View style={styles.onlineDot} />
+                        <View
+                            style={[
+                                styles.onlineBadge,
+                                !isDeviceOnline &&
+                                styles.offlineBadge,
+                            ]}
+                        >
+                            <View
+                                style={
+                                    isDeviceOnline
+                                        ? styles.onlineDot
+                                        : styles.offlineDot
+                                }
+                            />
 
-                            <Text style={styles.onlineText}>
-                                LIVE
+                            <Text
+                                style={
+                                    isDeviceOnline
+                                        ? styles.onlineText
+                                        : styles.offlineText
+                                }
+                            >
+                                {isDeviceOnline
+                                    ? 'ONLINE'
+                                    : 'OFFLINE'}
                             </Text>
                         </View>
                     </View>
@@ -618,7 +710,7 @@ const HomeScreen = () => {
 
                         <View style={styles.statistic}>
                             <Text style={styles.statisticNumber}>
-                                0
+                                {onlineDeviceCount}
                             </Text>
 
                             <Text style={styles.statisticLabel}>
@@ -626,17 +718,8 @@ const HomeScreen = () => {
                             </Text>
                         </View>
 
-                        <View style={styles.verticalDivider} />
 
-                        <View style={styles.statistic}>
-                            <Text style={styles.statisticNumber}>
-                                0
-                            </Text>
 
-                            <Text style={styles.statisticLabel}>
-                                Alerts
-                            </Text>
-                        </View>
                     </View>
                 </View>
 
@@ -820,7 +903,7 @@ const HomeScreen = () => {
                         </Text>
 
                         <Text style={styles.actionSubtitle}>
-                           {myDevices.length} members
+                            {myDevices.length} members
                         </Text>
                     </TouchableOpacity>
 
@@ -865,7 +948,7 @@ const HomeScreen = () => {
                         </Text>
 
                         <Text style={styles.actionSubtitle}>
-                            View history
+                            {emergencies.length} Emergency
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -877,14 +960,10 @@ const HomeScreen = () => {
                         Last SOS Triggered
                     </Text>
 
-                    <TouchableOpacity>
-                        <Text style={styles.viewAllText}>
-                            View history
-                        </Text>
-                    </TouchableOpacity>
                 </View>
-
                 <View style={styles.sosCard}>
+
+                    {/* Main Header */}
                     <View style={styles.sosHeader}>
                         <View style={styles.alertIconContainer}>
                             <Text style={styles.alertIcon}>!</Text>
@@ -892,11 +971,11 @@ const HomeScreen = () => {
 
                         <View style={styles.sosHeaderText}>
                             <Text style={styles.sosTitle}>
-                                Emergency alert
+                                Emergency alerts
                             </Text>
 
                             <Text style={styles.sosStatus}>
-                                Resolved
+                                Last {emergencies.length} alerts
                             </Text>
                         </View>
 
@@ -904,53 +983,74 @@ const HomeScreen = () => {
                             <View style={styles.resolvedDot} />
 
                             <Text style={styles.resolvedText}>
-                                SAFE
+                                SOS
                             </Text>
                         </View>
                     </View>
 
-                    <View style={styles.sosInformation}>
-                        <View style={styles.sosInformationItem}>
-                            <Text style={styles.sosInformationLabel}>
-                                TRIGGERED BY
-                            </Text>
 
-                            <Text style={styles.sosInformationValue}>
-                                John Pyn
-                            </Text>
-                        </View>
-
-                        <View style={styles.sosInformationItem}>
-                            <Text style={styles.sosInformationLabel}>
-                                DATE
-                            </Text>
-
-                            <Text style={styles.sosInformationValue}>
-                                29 June 2026
-                            </Text>
-                        </View>
-
-                        <View style={styles.sosInformationItem}>
-                            <Text style={styles.sosInformationLabel}>
-                                TIME
-                            </Text>
-
-                            <Text style={styles.sosInformationValue}>
-                                11:45 PM
-                            </Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.sosLocation}>
-                        <Text style={styles.locationPin}>●</Text>
-
-                        <Text
-                            style={styles.sosLocationText}
-                            numberOfLines={1}
-                        >
-                            Penrith Station, NSW
+                    {/* Emergency List */}
+                    {emergencyLoading ? (
+                        <Text style={styles.sosStatus}>
+                            Loading emergency alerts...
                         </Text>
-                    </View>
+                    ) : emergencies.length === 0 ? (
+                        <Text style={styles.sosStatus}>
+                            No emergency alerts found
+                        </Text>
+                    ) : (
+                        emergencies.map((emergency, index) => (
+                            <View
+                                key={emergency._id || index}
+                                style={styles.emergencyItem}
+                            >
+
+                                <View style={styles.sosInformation}>
+
+                                    <View style={styles.sosInformationItem}>
+                                        <Text style={styles.sosInformationLabel}>
+                                            DEVICE
+                                        </Text>
+
+                                        <Text style={styles.sosInformationValue}>
+                                            {emergency.serialNumber || "Unknown"}
+                                        </Text>
+                                    </View>
+
+
+                                    <View style={styles.sosInformationItem}>
+                                        <Text style={styles.sosInformationLabel}>
+                                            DATE
+                                        </Text>
+
+                                        <Text style={styles.sosInformationValue}>
+                                            {emergency.gpsDate || "N/A"}
+                                        </Text>
+                                    </View>
+
+
+                                    <View style={styles.sosInformationItem}>
+                                        <Text style={styles.sosInformationLabel}>
+                                            TIME
+                                        </Text>
+
+                                        <Text style={styles.sosInformationValue}>
+                                            {emergency.gpsTime || "N/A"}
+                                        </Text>
+                                    </View>
+
+                                </View>
+
+
+                                {/* Divider except after last item */}
+                                {index !== emergencies.length - 1 && (
+                                    <View style={styles.emergencyDivider} />
+                                )}
+
+                            </View>
+                        ))
+                    )}
+
                 </View>
 
                 {/* Live locations */}
@@ -1477,6 +1577,24 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
 
+    offlineBadge: {
+        backgroundColor: '#3A2020',
+    },
+
+    offlineDot: {
+        width: 6,
+        height: 6,
+        backgroundColor: '#FF3B30',
+        borderRadius: 3,
+        marginRight: 5,
+    },
+
+    offlineText: {
+        color: '#FF6B63',
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 1,
+    },
     safetyDivider: {
         height: 1,
         backgroundColor: '#303030',
