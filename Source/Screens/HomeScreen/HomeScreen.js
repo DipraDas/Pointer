@@ -40,32 +40,56 @@ const HomeScreen = () => {
     const [emergencies, setEmergencies] = useState([]);
     const [emergencyLoading, setEmergencyLoading] = useState(true);
 
-    const fetchEmergencies = async () => {
-        try {
+ const fetchEmergencies = async (showLoading = false) => {
+    try {
+
+        if (showLoading) {
             setEmergencyLoading(true);
+        }
 
-            const response = await fetch(
-                "http://192.168.20.30:5001/api/tracker/emergencies/latest"
-            );
+        const response = await fetch(
+            "http://192.168.20.30:5001/api/tracker/emergencies/latest"
+        );
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (result.success) {
-                setEmergencies(result.data || []);
-            } else {
-                setEmergencies([]);
-            }
-        } catch (error) {
-            console.log("Emergency fetch error:", error);
-            setEmergencies([]);
-        } finally {
+        if (result.success) {
+            setEmergencies(result.data || []);
+        }
+
+    } catch (error) {
+
+        console.log(
+            "Emergency fetch error:",
+            error
+        );
+
+    } finally {
+
+        if (showLoading) {
             setEmergencyLoading(false);
         }
+
+    }
+};
+
+useEffect(() => {
+
+    // First load with loading indicator
+    fetchEmergencies(true);
+
+    // Silent refresh every 5 seconds
+    const interval = setInterval(() => {
+
+        fetchEmergencies(false);
+
+    }, 5000);
+
+    return () => {
+        clearInterval(interval);
     };
 
-    useEffect(() => {
-        fetchEmergencies();
-    }, []);
+}, []);
 
     // IMPORTANT:
     // This will contain FULL DEVICE OBJECTS,
